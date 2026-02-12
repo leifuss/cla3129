@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ptolemy's Temporal Coordinate System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; }
+#header {
+    padding: 10px 20px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+}
+#header h1 { font-size: 1.3em; color: #e8d5b7; letter-spacing: 0.5px; }
+#header p { font-size: 0.85em; color: #a89880; margin-top: 2px; }
+#map { width: 100%; height: calc(100vh - 230px); background: #d4e6f1; }
+#controls {
+    padding: 10px 20px;
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+}
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.slider-row label {
+    font-size: 0.85em;
+    min-width: 140px;
+    white-space: nowrap;
+}
+.slider-row input[type="range"] {
+    flex: 1;
+    max-width: 500px;
+    cursor: pointer;
+}
+.slider-row .val {
+    font-size: 0.85em;
+    min-width: 130px;
+    white-space: nowrap;
+}
+input[type="range"] { accent-color: #e74c3c; }
+.val-num { color: #e74c3c; font-weight: bold; }
+.slider-marks {
+    display: flex;
+    justify-content: space-between;
+    max-width: 500px;
+    margin-left: 152px;
+    font-size: 0.75em;
+    color: #a89880;
+    margin-bottom: 4px;
+}
+#info-toggle {
+    position: absolute;
+    top: 55px;
+    right: 10px;
+    z-index: 1000;
+    background: #16213e;
+    color: #e8d5b7;
+    border: 1px solid #0f3460;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.85em;
+    border-radius: 4px;
+}
+#info-panel {
+    display: none;
+    position: absolute;
+    top: 90px;
+    right: 10px;
+    z-index: 1000;
+    width: 360px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: rgba(22, 33, 62, 0.95);
+    border: 1px solid #0f3460;
+    padding: 16px;
+    font-size: 0.85em;
+    line-height: 1.5;
+    border-radius: 6px;
+}
+#info-panel h3 { color: #e8d5b7; margin-bottom: 8px; }
+#info-panel p { margin-bottom: 10px; color: #c8bfad; }
+#info-panel strong { color: #e74c3c; }
+.hour-label {
+    background: none !important;
+    border: none !important;
+    color: #cc0000;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+    white-space: nowrap;
+}
+.region-tooltip {
+    background: rgba(22, 33, 62, 0.9);
+    border: 1px solid #0f3460;
+    color: #e8d5b7;
+    font-family: Georgia, serif;
+    font-size: 13px;
+    padding: 4px 8px;
+}
+.leaflet-control-layers {
+    background: rgba(22, 33, 62, 0.95) !important;
+    border: 1px solid #0f3460 !important;
+    color: #e8d5b7 !important;
+}
+.leaflet-control-layers label { color: #e8d5b7 !important; }
+.klima-label {
+    background: none !important;
+    border: none !important;
+    color: rgba(128,0,0,0.7);
+    font-size: 10px;
+    font-style: italic;
+    white-space: nowrap;
+}
+.degree-label {
+    background: none !important;
+    border: none !important;
+    color: rgba(120,120,120,0.7);
+    font-size: 10px;
+    white-space: nowrap;
+}
+.grid-toggle {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+    font-size: 0.85em;
+}
+.grid-toggle label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.grid-toggle input[type="radio"] {
+    accent-color: #e74c3c;
+    cursor: pointer;
+}
+.slider-row.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+    <h1>Ptolemy's Temporal Coordinate System</h1>
+    <p>Regional boundaries of the <em>Geographike Hyphegesis</em> aligned with hour-interval meridians</p>
+</div>
+
+<div style="position: relative;">
+    <div id="map"></div>
+    <button id="info-toggle" onclick="toggleInfo()">About</button>
+    <div id="info-panel">
+        <h3>About this visualization</h3>
+        <p>This map shows the 95 regional boundaries from Ptolemy's <em>Geographike Hyphegesis</em> (2nd century CE), plotted in Ptolemy's own coordinate system. Longitude runs from 0 (the Blessed Isles) to 180 degrees (Sera/China).</p>
+        <p>The <strong>red meridian lines</strong> represent hour intervals of equinoctial time (1 hour = 15&deg;). Sub-intervals at 20-minute spacing (5&deg;) are shown as dashed lines.</p>
+        <p>Use the <strong>meridian slider</strong> to shift the grid eastward. At approximately <strong>5&deg; (20 min)</strong>, the meridians align with many European regional boundary edges.</p>
+        <p>The <strong>Asia and Africa sliders</strong> shift those continental blocks independently. The paper finds Asia aligns best at ~1&deg; east, and Africa at ~1.25&deg; east.</p>
+        <p>Toggle <strong>Marinos' critiques</strong> to see the measurement lines Ptolemy disputed, and the <strong>Carthage-Arbela eclipse</strong> observation that anchored his longitudinal framework.</p>
+    </div>
+</div>
+
+<div id="controls">
+    <div class="grid-toggle">
+        <span style="min-width: 140px;">Grid system:</span>
+        <label><input type="radio" name="grid-mode" value="hours" checked onchange="setGridMode('hours')"> Hour intervals / Klimata</label>
+        <label><input type="radio" name="grid-mode" value="degrees" onchange="setGridMode('degrees')"> Lat/Long degrees</label>
+    </div>
+    <div class="slider-row" id="meridian-slider-row">
+        <label>Meridian shift:</label>
+        <input type="range" id="shift-slider" min="0" max="10" step="0.1" value="0">
+        <span class="val"><span class="val-num" id="shift-value">0.0</span>&deg; = <span id="shift-minutes">0</span> min</span>
+    </div>
+    <div class="slider-marks" id="meridian-marks-row">
+        <span>0&deg;</span>
+        <span style="color: #e74c3c;">5&deg; (20 min)</span>
+        <span>10&deg;</span>
+    </div>
+    <div class="slider-row">
+        <label>W/C Asia shift:</label>
+        <input type="range" id="asia-slider" min="-2" max="5" step="0.05" value="0">
+        <span class="val"><span class="val-num" id="asia-value">0.00</span>&deg;</span>
+    </div>
+    <div class="slider-row">
+        <label>Africa block shift:</label>
+        <input type="range" id="africa-slider" min="-2" max="5" step="0.05" value="0">
+        <span class="val"><span class="val-num" id="africa-value">0.00</span>&deg;</span>
+    </div>
+</div>
+
+<script>
+// Region colors from boundarystylerevised.qml
+const REGION_COLORS = {
+    "Africa": "rgb(255,204,102)",
+    "Albania": "rgb(255,111,207)",
+    "Albion": "rgb(0,0,255)",
+    "Amorgos": "rgb(255,102,102)",
+    "Aquitania": "rgb(0,0,255)",
+    "Arabia  Petraea": "rgb(76,76,76)",
+    "Arabia Deserta": "rgb(76,76,76)",
+    "Arabia Felix": "rgb(76,76,76)",
+    "Arachosia": "rgb(0,255,0)",
+    "Areia": "rgb(0,255,0)",
+    "Armenia": "rgb(255,128,0)",
+    "Asia": "rgb(128,0,0)",
+    "Asian Sarmatia": "rgb(255,111,207)",
+    "Assyria": "rgb(255,128,0)",
+    "Attica": "rgb(0,255,0)",
+    "Babylonia": "rgb(255,128,0)",
+    "Bactria": "rgb(0,255,0)",
+    "Baetica": "rgb(255,0,0)",
+    "Belgika": "rgb(0,0,255)",
+    "Cappadocia": "rgb(128,0,0)",
+    "Carmania": "rgb(0,255,0)",
+    "Carmanian desert": "rgb(0,255,0)",
+    "Chersonesos": "rgb(255,111,207)",
+    "Chios": "rgb(128,0,0)",
+    "Cilicia": "rgb(128,0,0)",
+    "Colchis": "rgb(255,111,207)",
+    "Corsica": "rgb(128,0,128)",
+    "Cyprus": "rgb(128,0,0)",
+    "Cyrenaica": "rgb(255,204,102)",
+    "Dacia": "rgb(255,111,207)",
+    "Drangiane": "rgb(0,255,0)",
+    "Egypt": "rgb(204,102,255)",
+    "Epeiros": "rgb(0,255,0)",
+    "Ethiopia South of Egypt": "rgb(204,102,255)",
+    "Euboea": "rgb(0,255,0)",
+    "European Sarmatia": "rgb(255,111,207)",
+    "Galatia": "rgb(128,0,0)",
+    "Gedrosia": "rgb(0,255,0)",
+    "Germania": "rgb(0,0,255)",
+    "Hibernia": "rgb(0,0,255)",
+    "Hyrcania": "rgb(0,255,0)",
+    "Iazyges": "rgb(255,111,207)",
+    "Iberia": "rgb(255,111,207)",
+    "Illyricum": "rgb(128,0,128)",
+    "India before Ganges": "rgb(128,0,0)",
+    "India beyond Ganges": "rgb(128,0,0)",
+    "Inner Ethiopia": "rgb(102,204,255)",
+    "Inner Ethopia": "rgb(0,0,0)",
+    "Inner Libya": "rgb(255,204,102)",
+    "Italia": "rgb(128,0,128)",
+    "Karpathos": "rgb(128,0,0)",
+    "Krete": "rgb(0,255,0)",
+    "Lesbos": "rgb(128,0,0)",
+    "Lugdunensis": "rgb(0,0,255)",
+    "Lusitania": "rgb(255,0,0)",
+    "Lycia": "rgb(128,0,0)",
+    "M. Caesarensis": "rgb(255,204,102)",
+    "M. Tingitana": "rgb(255,204,102)",
+    "Makedonia": "rgb(0,255,0)",
+    "Margiane": "rgb(0,255,0)",
+    "Masdoranon": "rgb(128,0,0)",
+    "Media": "rgb(255,128,0)",
+    "Melite": "rgb(255,204,102)",
+    "Mesopotamia": "rgb(255,128,0)",
+    "Moesia I.": "rgb(255,111,207)",
+    "Moesia S.": "rgb(255,111,207)",
+    "Narbonnensis": "rgb(128,0,128)",
+    "Noricum": "rgb(0,0,255)",
+    "Palestina/Judaea": "rgb(128,0,0)",
+    "Pamphylia": "rgb(128,0,0)",
+    "Pannonia I.": "rgb(0,0,255)",
+    "Pannonia S.": "rgb(0,0,255)",
+    "Paropanisads": "rgb(0,255,0)",
+    "Parthia": "rgb(0,255,0)",
+    "Peloponessos": "rgb(0,255,0)",
+    "Persis": "rgb(255,128,0)",
+    "Pontus and Bithynia": "rgb(128,0,0)",
+    "Rhaetia": "rgb(0,0,255)",
+    "Rhodos": "rgb(128,0,0)",
+    "Sakai": "rgb(0,0,255)",
+    "Sardo": "rgb(128,0,128)",
+    "Scandia": "rgb(0,0,255)",
+    "Scythia before Imaos": "rgb(0,0,255)",
+    "Scythia beyond Imaos": "rgb(0,0,255)",
+    "Serike": "rgb(0,0,255)",
+    "Sicily": "rgb(128,0,128)",
+    "Sinai": "rgb(0,0,0)",
+    "Sogdians": "rgb(0,0,255)",
+    "Susiane": "rgb(255,128,0)",
+    "Syria": "rgb(128,0,0)",
+    "Taprobane": "rgb(128,0,0)",
+    "Tarraconensis": "rgb(255,0,0)",
+    "Thrace": "rgb(128,0,0)",
+    "Thracian Chersonessos": "rgb(128,0,0)",
+    "Thule": "rgb(0,0,255)"
+};
+const DEFAULT_COLOR = "rgb(5,226,134)";
+
+// Continent classification based on Ptolemy's Geography structure
+// Europe: Books 2-3, Africa/Libya: Book 4, Asia: Books 5-7
+const AFRICA_REGIONS = new Set([
+    "M. Tingitana", "M. Caesarensis", "Africa", "Cyrenaica",
+    "Egypt", "Inner Libya", "Ethiopia South of Egypt",
+    "Inner Ethiopia", "Inner Ethopia"
+]);
+
+// Slideable western/central Asia: Anatolia, Near East, Sarmatia, Arabia, Central Asia (to Bactria)
+const ASIA_SLIDE_REGIONS = new Set([
+    // Anatolia (dark red)
+    "Pontus and Bithynia", "Asia", "Lycia", "Galatia", "Pamphylia",
+    "Cappadocia", "Cilicia", "Cyprus",
+    // Near East (brown/orange)
+    "Armenia", "Syria", "Palestina/Judaea", "Mesopotamia", "Babylonia",
+    "Assyria", "Media", "Susiane", "Persis",
+    // Sarmatia (pink)
+    "Asian Sarmatia", "Colchis", "Iberia", "Albania",
+    // Arabia (grey)
+    "Arabia  Petraea", "Arabia Deserta", "Arabia Felix",
+    // Central Asia (green) - up to Bactria
+    "Parthia", "Carmanian desert", "Carmania", "Hyrcania", "Margiane",
+    "Bactria", "Arachosia", "Gedrosia", "Drangiane", "Areia", "Paropanisads"
+]);
+
+// Fixed eastern Asia: India, Serike, Scythia, etc. - do not slide
+const ASIA_FIXED_REGIONS = new Set([
+    "India before Ganges", "India beyond Ganges", "Taprobane",
+    "Serike", "Sinai", "Masdoranon",
+    "Sakai", "Sogdians", "Scythia before Imaos", "Scythia beyond Imaos"
+]);
+
+// Everything else is Europe (default)
+function getContinent(regionName) {
+    if (AFRICA_REGIONS.has(regionName)) return 'africa';
+    if (ASIA_SLIDE_REGIONS.has(regionName)) return 'asia_slide';
+    if (ASIA_FIXED_REGIONS.has(regionName)) return 'asia_fixed';
+    return 'europe';
+}
+
+// Map setup
+const map = L.map('map', {
+    crs: L.CRS.Simple,
+    minZoom: -2,
+    maxZoom: 5,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5
+});
+const mapBounds = L.latLngBounds([[-17, -2], [64, 182]]);
+map.fitBounds(mapBounds);
+
+// Coordinate transform helper
+function c2ll(coords) { return L.latLng(coords[1], coords[0]); }
+
+// Layer groups
+let backdropLayer = L.layerGroup().addTo(map);
+let europeLayer = L.layerGroup().addTo(map);
+let asiaSlideLayer = L.layerGroup().addTo(map);
+let asiaFixedLayer = L.layerGroup().addTo(map);
+let africaLayer = L.layerGroup().addTo(map);
+let riversLayer = L.layerGroup();
+let mountainsLayer = L.layerGroup();
+let meridianLayer = L.layerGroup().addTo(map);
+let marinosCritiquesLayer = L.layerGroup();
+let eclipseLayer = L.layerGroup();
+let journey1Layer = L.layerGroup();
+let journey2Layer = L.layerGroup();
+let klimataLayer = L.layerGroup();
+let degreeGridLayer = L.layerGroup();
+
+// Store original GeoJSON for re-rendering shifted regions
+let regionsData = null;
+let asiaShift = 0;
+let africaShift = 0;
+
+function regionStyle(feature) {
+    const name = feature.properties.Region || '';
+    const color = REGION_COLORS[name] || DEFAULT_COLOR;
+    return { fillColor: color, fillOpacity: 0.47, color: '#000', weight: 1 };
+}
+
+function regionInteraction(feature, layer) {
+    const name = feature.properties.Region || 'Unknown';
+    const continent = getContinent(name);
+    const tag = continent === 'europe' ? '' : ' [' + continent + ']';
+    layer.bindTooltip(name + tag, { sticky: true, className: 'region-tooltip' });
+}
+
+// Fix polygon winding order: exterior rings should be CW (negative signed area)
+function ringSignedArea(ring) {
+    let area = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+        area += (ring[i + 1][0] - ring[i][0]) * (ring[i + 1][1] + ring[i][1]);
+    }
+    return area;
+}
+function fixPolygonWinding(coords) {
+    // coords is array of rings: [exterior, ...holes]
+    coords.forEach((ring, i) => {
+        const sa = ringSignedArea(ring);
+        if (i === 0 && sa > 0) ring.reverse();  // exterior should be CW (negative)
+        if (i > 0 && sa < 0) ring.reverse();     // holes should be CCW (positive)
+    });
+}
+function fixGeometryWinding(geom) {
+    if (geom.type === 'Polygon') {
+        fixPolygonWinding(geom.coordinates);
+    } else if (geom.type === 'MultiPolygon') {
+        geom.coordinates.forEach(fixPolygonWinding);
+    }
+    return geom;
+}
+
+// Shift coordinates in a GeoJSON geometry by lonOffset
+function shiftGeometry(geom, lonOffset) {
+    if (lonOffset === 0) return geom;
+    const shifted = JSON.parse(JSON.stringify(geom));
+    function shiftCoords(coords) {
+        if (typeof coords[0] === 'number') {
+            coords[0] += lonOffset;
+        } else {
+            coords.forEach(shiftCoords);
+        }
+    }
+    shiftCoords(shifted.coordinates);
+    return shifted;
+}
+
+function renderRegionLayer(layer, data, continentFilter, lonOffset) {
+    layer.clearLayers();
+    const filtered = {
+        type: "FeatureCollection",
+        features: data.features.filter(f => getContinent(f.properties.Region) === continentFilter)
+    };
+    // Fix winding order and apply shift
+    filtered.features = filtered.features.map(f => {
+        let geom = JSON.parse(JSON.stringify(f.geometry));
+        fixGeometryWinding(geom);
+        if (lonOffset !== 0) geom = shiftGeometry(geom, lonOffset);
+        return { ...f, geometry: geom };
+    });
+    L.geoJSON(filtered, {
+        coordsToLatLng: c2ll,
+        style: regionStyle,
+        onEachFeature: regionInteraction
+    }).addTo(layer);
+}
+
+function redrawRegions() {
+    if (!regionsData) return;
+    renderRegionLayer(europeLayer, regionsData, 'europe', 0);
+    renderRegionLayer(asiaSlideLayer, regionsData, 'asia_slide', asiaShift);
+    renderRegionLayer(asiaFixedLayer, regionsData, 'asia_fixed', 0);
+    renderRegionLayer(africaLayer, regionsData, 'africa', africaShift);
+}
+
+// Draw meridians
+function drawMeridians(shiftDegrees) {
+    meridianLayer.clearLayers();
+    const latMin = -17;
+    const latMax = 64;
+    for (let hour = 0; hour <= 12; hour++) {
+        const shiftedLon = hour * 15 + shiftDegrees;
+        meridianLayer.addLayer(L.polyline(
+            [[latMin, shiftedLon], [latMax, shiftedLon]],
+            { color: '#cc0000', weight: 2, opacity: 0.8 }
+        ));
+        meridianLayer.addLayer(L.marker([latMax + 1.5, shiftedLon], {
+            icon: L.divIcon({
+                className: 'hour-label',
+                html: '<span>' + hour + 'h</span>',
+                iconSize: [30, 16], iconAnchor: [15, 8]
+            }),
+            interactive: false
+        }));
+    }
+    // 1/3 hour lines (every 5 degrees) — darker
+    for (let lon = 0; lon <= 180; lon += 5) {
+        if (lon % 15 === 0) continue;
+        meridianLayer.addLayer(L.polyline(
+            [[latMin, lon + shiftDegrees], [latMax, lon + shiftDegrees]],
+            { color: '#cc0000', weight: 1, opacity: 0.5 }
+        ));
+    }
+    // 1/6 hour lines (every 2.5 degrees) — lighter
+    for (let lon = 0; lon <= 180; lon += 2.5) {
+        if (lon % 5 === 0) continue; // skip positions already drawn
+        meridianLayer.addLayer(L.polyline(
+            [[latMin, lon + shiftDegrees], [latMax, lon + shiftDegrees]],
+            { color: '#cc0000', weight: 0.8, opacity: 0.3, dashArray: '4,4' }
+        ));
+    }
+}
+
+// Draw lat/long degree grid
+function drawDegreeGrid() {
+    degreeGridLayer.clearLayers();
+    const latMin = -15, latMax = 65, lonMin = 0, lonMax = 180;
+    // Longitude lines
+    for (let lon = lonMin; lon <= lonMax; lon += 5) {
+        const major = (lon % 15 === 0);
+        degreeGridLayer.addLayer(L.polyline(
+            [[latMin, lon], [latMax, lon]],
+            { color: '#888', weight: major ? 1 : 0.5, opacity: major ? 0.5 : 0.25 }
+        ));
+        if (major) {
+            degreeGridLayer.addLayer(L.marker([latMax + 1.5, lon], {
+                icon: L.divIcon({
+                    className: 'degree-label',
+                    html: lon + '°',
+                    iconSize: [30, 14], iconAnchor: [15, 7]
+                }),
+                interactive: false
+            }));
+        }
+    }
+    // Latitude lines
+    for (let lat = latMin; lat <= latMax; lat += 5) {
+        const major = (lat % 15 === 0);
+        degreeGridLayer.addLayer(L.polyline(
+            [[lat, lonMin], [lat, lonMax]],
+            { color: '#888', weight: major ? 1 : 0.5, opacity: major ? 0.5 : 0.25 }
+        ));
+        if (major) {
+            degreeGridLayer.addLayer(L.marker([lat, lonMax + 2], {
+                icon: L.divIcon({
+                    className: 'degree-label',
+                    html: lat + '°',
+                    iconSize: [30, 14], iconAnchor: [0, 7]
+                }),
+                interactive: false
+            }));
+        }
+    }
+}
+
+// Grid mode toggle
+let currentGridMode = 'hours';
+function setGridMode(mode) {
+    currentGridMode = mode;
+    const sliderRow = document.getElementById('meridian-slider-row');
+    const marksRow = document.getElementById('meridian-marks-row');
+    if (mode === 'hours') {
+        map.addLayer(meridianLayer);
+        map.addLayer(klimataLayer);
+        map.removeLayer(degreeGridLayer);
+        sliderRow.classList.remove('disabled');
+        marksRow.classList.remove('disabled');
+    } else {
+        map.removeLayer(meridianLayer);
+        map.removeLayer(klimataLayer);
+        map.addLayer(degreeGridLayer);
+        sliderRow.classList.add('disabled');
+        marksRow.classList.add('disabled');
+    }
+}
+
+// Load all data
+Promise.all([
+    fetch('data/backdrop.geojson').then(r => r.json()),
+    fetch('data/boundary_polys.geojson').then(r => r.json()),
+    fetch('data/rivers.geojson').then(r => r.json()),
+    fetch('data/mountains.geojson').then(r => r.json()),
+    fetch('data/connections.geojson').then(r => r.json()),
+    fetch('data/journeys.geojson').then(r => r.json())
+]).then(([backdrop, regions, rivers, mountains, connections, journeys]) => {
+
+    // Backdrop
+    L.geoJSON(backdrop, {
+        coordsToLatLng: c2ll,
+        style: { fillColor: '#f5e6c8', fillOpacity: 0.6, color: '#999', weight: 0.5 }
+    }).addTo(backdropLayer);
+
+    // Regions - split by continent
+    regionsData = regions;
+    redrawRegions();
+
+    // Rivers
+    L.geoJSON(rivers, {
+        coordsToLatLng: c2ll,
+        style: { color: '#4488cc', weight: 1.5, opacity: 0.7 },
+        onEachFeature: function(f, layer) {
+            if (f.properties.name) layer.bindTooltip(f.properties.name, { sticky: true, className: 'region-tooltip' });
+        }
+    }).addTo(riversLayer);
+
+    // Mountains
+    L.geoJSON(mountains, {
+        coordsToLatLng: c2ll,
+        style: { color: '#8B4513', weight: 1.5, opacity: 0.6, dashArray: '6,3' },
+        onEachFeature: function(f, layer) {
+            if (f.properties.name) layer.bindTooltip(f.properties.name, { sticky: true, className: 'region-tooltip' });
+        }
+    }).addTo(mountainsLayer);
+
+    // Connections: Marinos critiques
+    // Filter: (Type = boundary|distance|east-west|north-sout) AND source = Marinos
+    const marinosTypes = new Set(['boundary', 'distance', 'east-west', 'north-sout']);
+    const marinosFeatures = {
+        type: "FeatureCollection",
+        features: connections.features.filter(f =>
+            marinosTypes.has(f.properties.Type) && f.properties.source === 'Marinos'
+        )
+    };
+    L.geoJSON(marinosFeatures, {
+        coordsToLatLng: c2ll,
+        style: { color: '#cc6600', weight: 3.5, opacity: 0.9 },
+        onEachFeature: function(f, layer) {
+            const p = f.properties;
+            layer.bindTooltip(
+                p.name + ' (GH ' + p.chapter + ')',
+                { sticky: true, className: 'region-tooltip' }
+            );
+        }
+    }).addTo(marinosCritiquesLayer);
+
+    // Key measurements: Eclipse (Carthage-Arbela) — yellow
+    const eclipseFeatures = {
+        type: "FeatureCollection",
+        features: connections.features.filter(f => f.properties.Type === 'eclipse')
+    };
+    L.geoJSON(eclipseFeatures, {
+        coordsToLatLng: c2ll,
+        style: { color: '#ffff00', weight: 3, opacity: 0.9 },
+        onEachFeature: function(f, layer) {
+            layer.bindTooltip(
+                'Eclipse: ' + f.properties.name + ' (GH ' + f.properties.chapter + ')',
+                { sticky: true, className: 'region-tooltip' }
+            );
+        }
+    }).addTo(eclipseLayer);
+
+    // Key measurements: Baetis-Indus — teal
+    const baetisFeatures = {
+        type: "FeatureCollection",
+        features: connections.features.filter(f => f.properties.name === 'Baetis-Indus')
+    };
+    L.geoJSON(baetisFeatures, {
+        coordsToLatLng: c2ll,
+        style: { color: '#00e5ff', weight: 3, opacity: 0.9 },
+        onEachFeature: function(f, layer) {
+            layer.bindTooltip(
+                'Distance: ' + f.properties.name + ' (GH ' + f.properties.chapter + ')',
+                { sticky: true, className: 'region-tooltip' }
+            );
+        }
+    }).addTo(eclipseLayer);
+
+    // Journeys: render as connected polyline + circle markers
+    function renderJourney(data, filterKey, lineColor, layer) {
+        const pts = data.features
+            .filter(f => f.properties[filterKey] !== null && f.properties[filterKey] !== undefined)
+            .map(f => ({
+                name: f.properties.name,
+                latlng: [f.geometry.coordinates[1], f.geometry.coordinates[0]]
+            }));
+        // Polyline connecting all points in order
+        if (pts.length > 1) {
+            layer.addLayer(L.polyline(
+                pts.map(p => p.latlng),
+                { color: lineColor, weight: 2, opacity: 0.8, dashArray: '6,4' }
+            ));
+        }
+        // Circle markers at each point
+        pts.forEach(p => {
+            const cm = L.circleMarker(p.latlng, {
+                radius: 4, fillColor: lineColor, color: '#000',
+                weight: 1, fillOpacity: 0.9
+            });
+            cm.bindTooltip(p.name, { sticky: true, className: 'region-tooltip' });
+            layer.addLayer(cm);
+        });
+    }
+    renderJourney(journeys, 'journey1', '#00ccff', journey1Layer);
+    renderJourney(journeys, 'journey2', '#ff66cc', journey2Layer);
+
+    // Klimata: horizontal parallels at Ptolemaic latitudes (GH 1.23)
+    const klimata = [
+        { lat: 8.42, name: 'anti-Meroë', day: '12h30m' },
+        { lat: 16.45, name: 'Meroë', day: '13h' },
+        { lat: 23.85, name: 'Syene', day: '13h30m' },
+        { lat: 30.37, name: 'Lower Egypt', day: '14h' },
+        { lat: 36, name: 'Rhodes', day: '14h30m' },
+        { lat: 40.93, name: 'Hellespont', day: '15h' },
+        { lat: 45.02, name: 'mid-Pontus', day: '15h30m' },
+        { lat: 48.53, name: 'Borysthenes', day: '16h' },
+        { lat: 51.5, name: '', day: '16h30m' },
+        { lat: 54.02, name: '', day: '17h' },
+        { lat: 58, name: '', day: '18h' },
+        { lat: 63, name: 'Thule', day: '20h' }
+    ];
+    klimata.forEach(k => {
+        klimataLayer.addLayer(L.polyline(
+            [[k.lat, 0], [k.lat, 180]],
+            { color: 'rgb(128,0,0)', weight: 1, opacity: 0.6 }
+        ));
+        const label = k.name ? k.name + ' (' + k.day + ')' : k.day;
+        klimataLayer.addLayer(L.marker([k.lat, 181], {
+            icon: L.divIcon({
+                className: 'klima-label',
+                html: label,
+                iconSize: [80, 14], iconAnchor: [0, 7]
+            }),
+            interactive: false
+        }));
+    });
+
+    // Layer control (meridians/klimata/degree grid controlled by toggle, not here)
+    const overlays = {
+        "Europe regions": europeLayer,
+        "W/C Asia (slideable)": asiaSlideLayer,
+        "E Asia (fixed)": asiaFixedLayer,
+        "Africa regions": africaLayer,
+        "Marinos' critiques": marinosCritiquesLayer,
+        "Key measurements": eclipseLayer,
+        "Journey 1 (overland)": journey1Layer,
+        "Journey 2 (sea route)": journey2Layer,
+        "Rivers": riversLayer,
+        "Mountains": mountainsLayer,
+        "Land outline": backdropLayer
+    };
+    L.control.layers(null, overlays, { position: 'topleft', collapsed: true }).addTo(map);
+
+    drawMeridians(0);
+    drawDegreeGrid();
+    // Default: hours mode — klimata on with meridians
+    map.addLayer(klimataLayer);
+});
+
+// Slider: meridian shift
+const slider = document.getElementById('shift-slider');
+const shiftLabel = document.getElementById('shift-value');
+const minutesLabel = document.getElementById('shift-minutes');
+slider.addEventListener('input', function() {
+    const shift = parseFloat(this.value);
+    shiftLabel.textContent = shift.toFixed(1);
+    minutesLabel.textContent = (shift * 4).toFixed(0);
+    drawMeridians(shift);
+});
+
+// Slider: Asia block shift
+const asiaSlider = document.getElementById('asia-slider');
+const asiaLabel = document.getElementById('asia-value');
+asiaSlider.addEventListener('input', function() {
+    asiaShift = parseFloat(this.value);
+    asiaLabel.textContent = asiaShift.toFixed(2);
+    renderRegionLayer(asiaSlideLayer, regionsData, 'asia_slide', asiaShift);
+});
+
+// Slider: Africa block shift
+const africaSlider = document.getElementById('africa-slider');
+const africaLabel = document.getElementById('africa-value');
+africaSlider.addEventListener('input', function() {
+    africaShift = parseFloat(this.value);
+    africaLabel.textContent = africaShift.toFixed(2);
+    renderRegionLayer(africaLayer, regionsData, 'africa', africaShift);
+});
+
+// Info panel
+function toggleInfo() {
+    const panel = document.getElementById('info-panel');
+    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+}
+</script>
+
+</body>
+</html>
