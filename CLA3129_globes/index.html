@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancient Geography - CLA3129</title>
+    <style>
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: black;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+    }
+    .controls {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        background-color: rgba(26, 26, 26, 0.95);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #333;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+        transition: all 0.3s ease;
+    }
+    .controls.collapsed {
+        padding: 15px;
+        width: auto;
+    }
+    .controls.collapsed .controls-content {
+        display: none;
+    }
+    .toggle-button {
+        background: none;
+        border: none;
+        color: #4fc3f7;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        display: none;
+    }
+    .controls.collapsed .toggle-button {
+        display: block;
+    }
+    .controls:not(.collapsed) .toggle-button {
+        display: block;
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-size: 20px;
+    }
+    .controls h2 {
+        margin: 0 0 15px 0;
+        color: #4fc3f7;
+        font-size: 18px;
+        border-bottom: 1px solid #333;
+        padding-bottom: 10px;
+    }
+    .control-group {
+        margin-bottom: 15px;
+    }
+    .control-group label {
+        display: block;
+        color: #888;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    select {
+        width: 100%;
+        padding: 10px;
+        background-color: #2a2a2a;
+        color: #fff;
+        border: 1px solid #444;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    select:hover {
+        border-color: #4fc3f7;
+    }
+    select:focus {
+        outline: none;
+        border-color: #4fc3f7;
+        box-shadow: 0 0 5px rgba(79, 195, 247, 0.3);
+    }
+    .camera-coords {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #333;
+        color: #888;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+    .camera-coords .coord-label {
+        color: #4fc3f7;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .camera-coords .coord-values {
+        font-family: 'Courier New', monospace;
+        color: #aaa;
+    }
+    .container {
+        display: flex;
+        height: 100vh;
+        position: relative;
+    }
+    #globeViz {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+    #globeViz canvas {
+        position: absolute !important;
+        top: 0;
+        left: 0;
+    }
+    .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #4fc3f7;
+        font-size: 18px;
+        z-index: 500;
+    }
+    </style>
+    <script src="//unpkg.com/globe.gl"></script>
+</head>
+<body>
+  <div class="controls" id="controls">
+    <button class="toggle-button" id="toggleButton" title="Toggle controls">☰</button>
+    <div class="controls-content">
+      <h2 id="globeTitle">Ancient Geography</h2>
+      <div class="control-group">
+        <label>Select Globe:</label>
+        <select id="globeSelect">
+          <option value="eratosthenes">Eratosthenes' Geography (3rd c. BCE)</option>
+          <option value="marinos">Marinos of Tyre's Geography (c. 100 CE)</option>
+          <option value="ptolemy">Ptolemy's Geography (2nd c. CE)</option>
+        </select>
+      </div>
+      <div class="camera-coords">
+        <div class="coord-label">Camera Position</div>
+        <div class="coord-values" id="cameraCoords">
+          X: 0.00<br>
+          Y: 0.00<br>
+          Z: 0.00
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="globeViz"></div>
+  </div>
+
+  <div id="loading" class="loading" style="display: none;">Loading globe...</div>
+
+  <script type="module">
+    import { GlobeFramework } from './globe_framework.js';
+
+    let currentGlobe = null;
+    let currentConfig = null;
+
+    // Configuration mapping
+    const configMap = {
+      'eratosthenes': './config_eratosthenes.js',
+      'marinos': './config_marinos.js',
+      'ptolemy': './config_ptolemy.js'
+    };
+
+    const titleMap = {
+      'eratosthenes': "Eratosthenes' Geography (3rd c. BCE)",
+      'marinos': "Marinos of Tyre's Geography (c. 100 CE)",
+      'ptolemy': "Ptolemy's Geography (2nd c. CE)"
+    };
+
+    async function loadGlobe(globeType) {
+      const loading = document.getElementById('loading');
+      const globeViz = document.getElementById('globeViz');
+      const globeTitle = document.getElementById('globeTitle');
+
+      // Show loading indicator
+      loading.style.display = 'block';
+
+      try {
+        // Destroy existing globe if any
+        if (currentGlobe) {
+          globeViz.innerHTML = '';
+          currentGlobe = null;
+          currentConfig = null;
+        }
+
+        // Dynamically import the configuration
+        const configModule = await import(configMap[globeType]);
+        currentConfig = configModule.config;
+
+        // Create new globe instance
+        currentGlobe = new GlobeFramework('globeViz', currentConfig);
+        await currentGlobe.initGlobe();
+
+        // Update title
+        globeTitle.textContent = titleMap[globeType];
+
+        console.log(`Loaded ${globeType} globe`);
+      } catch (error) {
+        console.error('Error loading globe:', error);
+        alert('Error loading globe. Please try again.');
+      } finally {
+        // Hide loading indicator
+        loading.style.display = 'none';
+      }
+    }
+
+    // Handle dropdown change
+    document.getElementById('globeSelect').addEventListener('change', (event) => {
+      loadGlobe(event.target.value);
+    });
+
+    // Handle toggle button
+    const controls = document.getElementById('controls');
+    const toggleButton = document.getElementById('toggleButton');
+    toggleButton.addEventListener('click', () => {
+      controls.classList.toggle('collapsed');
+    });
+
+    // Update camera coordinates continuously
+    function updateCameraCoords() {
+      if (currentGlobe && currentGlobe.globe) {
+        const camera = currentGlobe.globe.camera();
+        const coordsDiv = document.getElementById('cameraCoords');
+        if (camera && coordsDiv) {
+          coordsDiv.innerHTML = `
+            X: ${camera.position.x.toFixed(2)}<br>
+            Y: ${camera.position.y.toFixed(2)}<br>
+            Z: ${camera.position.z.toFixed(2)}
+          `;
+        }
+      }
+      requestAnimationFrame(updateCameraCoords);
+    }
+    updateCameraCoords();
+
+    // Load default globe (Eratosthenes)
+    loadGlobe('eratosthenes');
+  </script>
+</body>
+</html>
