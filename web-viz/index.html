@@ -141,9 +141,26 @@ input[type="range"] { accent-color: #e74c3c; }
     accent-color: #e74c3c;
     cursor: pointer;
 }
-.slider-row.disabled {
+.slider-row.disabled, .slider-marks.disabled {
     opacity: 0.35;
     pointer-events: none;
+}
+.layer-toggles {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+    font-size: 0.85em;
+}
+.layer-toggles label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.layer-toggles input[type="checkbox"] {
+    accent-color: #e74c3c;
+    cursor: pointer;
 }
 </style>
 </head>
@@ -170,8 +187,16 @@ input[type="range"] { accent-color: #e74c3c; }
 <div id="controls">
     <div class="grid-toggle">
         <span style="min-width: 140px;">Grid system:</span>
-        <label><input type="radio" name="grid-mode" value="hours" checked onchange="setGridMode('hours')"> Hour intervals / Klimata</label>
-        <label><input type="radio" name="grid-mode" value="degrees" onchange="setGridMode('degrees')"> Lat/Long degrees</label>
+        <label><input type="radio" name="grid-mode" value="degrees" checked onchange="setGridMode('degrees')"> Lat/Long degrees</label>
+        <label><input type="radio" name="grid-mode" value="hours" onchange="setGridMode('hours')"> Hour intervals</label>
+    </div>
+    <div class="layer-toggles">
+        <span style="min-width: 140px;">Overlay layers:</span>
+        <label><input type="checkbox" onchange="toggleLayer(marinosCritiquesLayer, this.checked)"> Marinos' critiques</label>
+        <label><input type="checkbox" onchange="toggleLayer(eclipseLayer, this.checked)"> Key measurements</label>
+        <label><input type="checkbox" onchange="toggleJourneys(this.checked)"> Journeys</label>
+        <label><input type="checkbox" onchange="toggleLayer(klimataLayer, this.checked)"> Klimata</label>
+        <label><input type="checkbox" checked onchange="toggleLayer(riversLayer, this.checked)"> Rivers</label>
     </div>
     <div class="slider-row" id="meridian-slider-row">
         <label>Meridian shift:</label>
@@ -356,25 +381,63 @@ let europeLayer = L.layerGroup().addTo(map);
 let asiaSlideLayer = L.layerGroup().addTo(map);
 let asiaFixedLayer = L.layerGroup().addTo(map);
 let africaLayer = L.layerGroup().addTo(map);
-let riversLayer = L.layerGroup();
+let riversLayer = L.layerGroup().addTo(map);
 let mountainsLayer = L.layerGroup();
-let meridianLayer = L.layerGroup().addTo(map);
+let meridianLayer = L.layerGroup();
 let marinosCritiquesLayer = L.layerGroup();
 let eclipseLayer = L.layerGroup();
 let journey1Layer = L.layerGroup();
 let journey2Layer = L.layerGroup();
 let klimataLayer = L.layerGroup();
-let degreeGridLayer = L.layerGroup();
+let degreeGridLayer = L.layerGroup().addTo(map);
 
-// Store original GeoJSON for re-rendering shifted regions
+// Store original GeoJSON for re-rendering shifted regions and rivers
 let regionsData = null;
+let riversData = null;
 let asiaShift = 0;
 let africaShift = 0;
+
+// River continent classification
+const AFRICA_RIVERS = new Set([
+    'Malua', 'Ampsaga', 'nile delta', 'Nilotic canal', 'nile',
+    'nile east source', 'astapus', 'meroe'
+]);
+const ASIA_SLIDE_RIVERS = new Set([
+    'Euphrates', 'Tigris', 'Kyros', 'Bagradas', 'phasis'
+]);
+function getRiverContinent(name) {
+    if (AFRICA_RIVERS.has(name)) return 'africa';
+    if (ASIA_SLIDE_RIVERS.has(name)) return 'asia_slide';
+    return 'europe';
+}
+
+const RIVER_STYLE = { color: '#2266aa', weight: 2.5, opacity: 0.85 };
+
+function renderRivers() {
+    if (!riversData) return;
+    riversLayer.clearLayers();
+    riversData.features.forEach(f => {
+        const name = f.properties.name || '';
+        const cont = getRiverContinent(name);
+        let offset = 0;
+        if (cont === 'africa') offset = africaShift;
+        else if (cont === 'asia_slide') offset = asiaShift;
+        const geom = offset !== 0 ? shiftGeometry(f.geometry, offset) : f.geometry;
+        const layer = L.geoJSON({ type: 'Feature', geometry: geom, properties: f.properties }, {
+            coordsToLatLng: c2ll,
+            style: RIVER_STYLE,
+            onEachFeature: function(feat, lyr) {
+                if (feat.properties.name) lyr.bindTooltip(feat.properties.name, { sticky: true, className: 'region-tooltip' });
+            }
+        });
+        riversLayer.addLayer(layer);
+    });
+}
 
 function regionStyle(feature) {
     const name = feature.properties.Region || '';
     const color = REGION_COLORS[name] || DEFAULT_COLOR;
-    return { fillColor: color, fillOpacity: 0.47, color: '#000', weight: 1 };
+    return { fillColor: color, fillOpacity: 0.47, color: '#333', weight: 0.5 };
 }
 
 function regionInteraction(feature, layer) {
@@ -428,15 +491,20 @@ function renderRegionLayer(layer, data, continentFilter, lonOffset) {
     layer.clearLayers();
     const filtered = {
         type: "FeatureCollection",
-        features: data.features.filter(f => getContinent(f.properties.Region) === continentFilter)
+        features: data.features.filter(f => {
+            if (getContinent(f.properties.Region) !== continentFilter) return false;
+            // Skip degenerate polygons (lines masquerading as polygons)
+            const ring = f.geometry.coordinates[0];
+            const unique = new Set(ring.map(p => p[0] + ',' + p[1]));
+            return unique.size >= 4;
+        })
     };
-    // Fix winding order and apply shift
-    filtered.features = filtered.features.map(f => {
-        let geom = JSON.parse(JSON.stringify(f.geometry));
-        fixGeometryWinding(geom);
-        if (lonOffset !== 0) geom = shiftGeometry(geom, lonOffset);
-        return { ...f, geometry: geom };
-    });
+    if (lonOffset !== 0) {
+        filtered.features = filtered.features.map(f => ({
+            ...f,
+            geometry: shiftGeometry(f.geometry, lonOffset)
+        }));
+    }
     L.geoJSON(filtered, {
         coordsToLatLng: c2ll,
         style: regionStyle,
@@ -494,14 +562,13 @@ function drawMeridians(shiftDegrees) {
 function drawDegreeGrid() {
     degreeGridLayer.clearLayers();
     const latMin = -15, latMax = 65, lonMin = 0, lonMax = 180;
-    // Longitude lines
+    // Longitude lines — all same faint grey, labels at 15°
     for (let lon = lonMin; lon <= lonMax; lon += 5) {
-        const major = (lon % 15 === 0);
         degreeGridLayer.addLayer(L.polyline(
             [[latMin, lon], [latMax, lon]],
-            { color: '#888', weight: major ? 1 : 0.5, opacity: major ? 0.5 : 0.25 }
+            { color: '#888', weight: 0.5, opacity: 0.25 }
         ));
-        if (major) {
+        if (lon % 15 === 0) {
             degreeGridLayer.addLayer(L.marker([latMax + 1.5, lon], {
                 icon: L.divIcon({
                     className: 'degree-label',
@@ -512,14 +579,13 @@ function drawDegreeGrid() {
             }));
         }
     }
-    // Latitude lines
+    // Latitude lines — all same faint grey, labels at 15°
     for (let lat = latMin; lat <= latMax; lat += 5) {
-        const major = (lat % 15 === 0);
         degreeGridLayer.addLayer(L.polyline(
             [[lat, lonMin], [lat, lonMax]],
-            { color: '#888', weight: major ? 1 : 0.5, opacity: major ? 0.5 : 0.25 }
+            { color: '#888', weight: 0.5, opacity: 0.25 }
         ));
-        if (major) {
+        if (lat % 15 === 0) {
             degreeGridLayer.addLayer(L.marker([lat, lonMax + 2], {
                 icon: L.divIcon({
                     className: 'degree-label',
@@ -533,24 +599,32 @@ function drawDegreeGrid() {
 }
 
 // Grid mode toggle
-let currentGridMode = 'hours';
+let currentGridMode = 'degrees';
 function setGridMode(mode) {
     currentGridMode = mode;
     const sliderRow = document.getElementById('meridian-slider-row');
     const marksRow = document.getElementById('meridian-marks-row');
     if (mode === 'hours') {
         map.addLayer(meridianLayer);
-        map.addLayer(klimataLayer);
         map.removeLayer(degreeGridLayer);
         sliderRow.classList.remove('disabled');
         marksRow.classList.remove('disabled');
     } else {
         map.removeLayer(meridianLayer);
-        map.removeLayer(klimataLayer);
         map.addLayer(degreeGridLayer);
         sliderRow.classList.add('disabled');
         marksRow.classList.add('disabled');
     }
+}
+
+// Layer toggle helpers
+function toggleLayer(layer, show) {
+    if (show) map.addLayer(layer);
+    else map.removeLayer(layer);
+}
+function toggleJourneys(show) {
+    toggleLayer(journey1Layer, show);
+    toggleLayer(journey2Layer, show);
 }
 
 // Load all data
@@ -569,18 +643,34 @@ Promise.all([
         style: { fillColor: '#f5e6c8', fillOpacity: 0.6, color: '#999', weight: 0.5 }
     }).addTo(backdropLayer);
 
+    // Patch coordinate issues in source data
+    regions.features.forEach(f => {
+        const name = f.properties.Region;
+        const coords = f.geometry.coordinates[0];
+        if (name === 'Hyrcania') {
+            coords.forEach(pt => {
+                if (pt[0] === 95 && pt[1] === 39) pt[0] = 94;      // SW corner: align with Media
+                if (pt[0] === 95 && pt[1] === 40.5) pt[0] = 94;     // NW corner: align with Media
+                if (pt[0] === 102 && pt[1] === 39) pt[0] = 101;      // SE corner: align with Margiane
+            });
+        }
+        if (name === 'Areia') {
+            // Remove duplicate vertex [101.5, 33.33]
+            for (let i = coords.length - 2; i > 0; i--) {
+                if (coords[i][0] === coords[i-1][0] && coords[i][1] === coords[i-1][1]) {
+                    coords.splice(i, 1);
+                }
+            }
+        }
+    });
+
     // Regions - split by continent
     regionsData = regions;
     redrawRegions();
 
-    // Rivers
-    L.geoJSON(rivers, {
-        coordsToLatLng: c2ll,
-        style: { color: '#4488cc', weight: 1.5, opacity: 0.7 },
-        onEachFeature: function(f, layer) {
-            if (f.properties.name) layer.bindTooltip(f.properties.name, { sticky: true, className: 'region-tooltip' });
-        }
-    }).addTo(riversLayer);
+    // Rivers — stored for re-rendering when sliders change
+    riversData = rivers;
+    renderRivers();
 
     // Mountains
     L.geoJSON(mountains, {
@@ -674,23 +764,24 @@ Promise.all([
 
     // Klimata: horizontal parallels at Ptolemaic latitudes (GH 1.23)
     const klimata = [
-        { lat: 8.42, name: 'anti-Meroë', day: '12h30m' },
-        { lat: 16.45, name: 'Meroë', day: '13h' },
-        { lat: 23.85, name: 'Syene', day: '13h30m' },
-        { lat: 30.37, name: 'Lower Egypt', day: '14h' },
-        { lat: 36, name: 'Rhodes', day: '14h30m' },
-        { lat: 40.93, name: 'Hellespont', day: '15h' },
-        { lat: 45.02, name: 'mid-Pontus', day: '15h30m' },
-        { lat: 48.53, name: 'Borysthenes', day: '16h' },
-        { lat: 51.5, name: '', day: '16h30m' },
-        { lat: 54.02, name: '', day: '17h' },
-        { lat: 58, name: '', day: '18h' },
-        { lat: 63, name: 'Thule', day: '20h' }
+        { lat: 0, name: 'Equator', day: '12h', full: true },
+        { lat: -16.45, name: 'anti-Meroë', day: '13h south', full: true },
+        { lat: 16.45, name: 'Meroë', day: '13h', full: true },
+        { lat: 23.85, name: 'Syene', day: '13h30m', full: false },
+        { lat: 30.37, name: 'Lower Egypt', day: '14h', full: true },
+        { lat: 36, name: 'Rhodes', day: '14h30m', full: false },
+        { lat: 40.93, name: 'Hellespont', day: '15h', full: true },
+        { lat: 45.02, name: 'mid-Pontus', day: '15h30m', full: false },
+        { lat: 48.53, name: 'Borysthenes', day: '16h', full: true },
+        { lat: 51.5, name: '', day: '16h30m', full: false },
+        { lat: 54.02, name: '', day: '17h', full: true },
+        { lat: 58, name: '', day: '18h', full: true },
+        { lat: 63, name: 'Thule', day: '20h', full: true }
     ];
     klimata.forEach(k => {
         klimataLayer.addLayer(L.polyline(
             [[k.lat, 0], [k.lat, 180]],
-            { color: 'rgb(128,0,0)', weight: 1, opacity: 0.6 }
+            { color: 'rgb(128,0,0)', weight: k.full ? 2 : 1, opacity: 0.6 }
         ));
         const label = k.name ? k.name + ' (' + k.day + ')' : k.day;
         klimataLayer.addLayer(L.marker([k.lat, 181], {
@@ -709,11 +800,6 @@ Promise.all([
         "W/C Asia (slideable)": asiaSlideLayer,
         "E Asia (fixed)": asiaFixedLayer,
         "Africa regions": africaLayer,
-        "Marinos' critiques": marinosCritiquesLayer,
-        "Key measurements": eclipseLayer,
-        "Journey 1 (overland)": journey1Layer,
-        "Journey 2 (sea route)": journey2Layer,
-        "Rivers": riversLayer,
         "Mountains": mountainsLayer,
         "Land outline": backdropLayer
     };
@@ -721,8 +807,9 @@ Promise.all([
 
     drawMeridians(0);
     drawDegreeGrid();
-    // Default: hours mode — klimata on with meridians
-    map.addLayer(klimataLayer);
+    // Default: degrees mode — meridian slider disabled on load
+    document.getElementById('meridian-slider-row').classList.add('disabled');
+    document.getElementById('meridian-marks-row').classList.add('disabled');
 });
 
 // Slider: meridian shift
@@ -743,6 +830,7 @@ asiaSlider.addEventListener('input', function() {
     asiaShift = parseFloat(this.value);
     asiaLabel.textContent = asiaShift.toFixed(2);
     renderRegionLayer(asiaSlideLayer, regionsData, 'asia_slide', asiaShift);
+    renderRivers();
 });
 
 // Slider: Africa block shift
@@ -752,6 +840,7 @@ africaSlider.addEventListener('input', function() {
     africaShift = parseFloat(this.value);
     africaLabel.textContent = africaShift.toFixed(2);
     renderRegionLayer(africaLayer, regionsData, 'africa', africaShift);
+    renderRivers();
 });
 
 // Info panel
