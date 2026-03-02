@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antonine Itineraries</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; display: flex; flex-direction: column; height: 100vh; }
+#header {
+    padding: 10px 20px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+}
+#header h1 { font-size: 1.3em; color: #e8d5b7; letter-spacing: 0.5px; }
+#header p { font-size: 0.85em; color: #a89880; margin-top: 2px; }
+#map { flex: 1; }
+.leaflet-popup-content-wrapper {
+    background: #16213e;
+    color: #e8d5b7;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+}
+.leaflet-popup-tip { background: #16213e; }
+.leaflet-popup-content { margin: 10px 14px; font-family: 'Georgia', serif; }
+.leaflet-popup-content b { color: #e8d5b7; font-size: 0.95em; }
+.leaflet-popup-content .sub { color: #a89880; font-size: 0.8em; margin-top: 4px; }
+.leaflet-control-layers {
+    background: rgba(22, 33, 62, 0.95) !important;
+    border: 1px solid #0f3460 !important;
+    color: #e8d5b7 !important;
+}
+.leaflet-control-layers-base label,
+.leaflet-control-layers-overlays label { color: #e8d5b7; font-size: 0.85em; }
+.leaflet-control-layers-separator { border-top-color: #0f3460; }
+.leaflet-bar a { background: #16213e; color: #e8d5b7; border-color: #0f3460; }
+.leaflet-bar a:hover { background: #0f3460; }
+</style>
+</head>
+<body>
+
+<div id="header">
+    <h1>Antonine Itineraries</h1>
+    <p>Routes and waypoints of the <i>Itinerarium Antonini</i> — the principal road-book of the Roman Empire (3rd c. CE)</p>
+</div>
+
+<div id="map"></div>
+
+<script>
+// --- Basemaps ---
+const dare = L.tileLayer(
+    'https://dare.ht.lu.se/tiles/imperium/{z}/{x}/{y}.png',
+    {
+        attribution: '<a href="https://dare.ht.lu.se/">Digital Atlas of the Roman Empire</a>, Lund University',
+        maxZoom: 11,
+        minZoom: 3
+    }
+);
+
+const satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+        attribution: 'Imagery &copy; Esri, Maxar, GeoEye, Earthstar Geographics',
+        maxZoom: 18
+    }
+);
+
+// --- Map ---
+const map = L.map('map', {
+    center: [41, 20],
+    zoom: 5,
+    layers: [dare]
+});
+
+// --- Route renderer ---
+function routeStyle() {
+    return {
+        color: '#c0392b',
+        weight: 2,
+        opacity: 0.85
+    };
+}
+
+function routePopup(feature) {
+    const p = feature.properties;
+    return `<b>Route segment</b><div class="sub">Stretch ID: ${p.STRETCHID ?? '—'}<br>Certainty: ${p.certainty ?? '—'}</div>`;
+}
+
+// --- Waypoint renderer ---
+function waypointMarker(feature, latlng) {
+    return L.circleMarker(latlng, {
+        radius: 4,
+        fillColor: '#e8d5b7',
+        color: '#8b0000',
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.85
+    });
+}
+
+function waypointPopup(feature) {
+    const p = feature.properties;
+    const name = p.label || '(unnamed)';
+    const extra = [p.locsource ? `Location: ${p.locsource}` : null, p.TPID ? `TP ID: ${p.TPID}` : null]
+        .filter(Boolean).join('<br>');
+    return `<b>${name}</b>${extra ? `<div class="sub">${extra}</div>` : ''}`;
+}
+
+// --- Load layers ---
+let routesLayer, waypointsLayer;
+
+fetch('./data/antonine_itineraries.geojson')
+    .then(r => r.json())
+    .then(data => {
+        routesLayer = L.geoJSON(data, {
+            style: routeStyle,
+            onEachFeature: (feature, layer) => layer.bindPopup(routePopup(feature))
+        }).addTo(map);
+        addLayerControl();
+    });
+
+fetch('./data/antonine_itineraries_points.geojson')
+    .then(r => r.json())
+    .then(data => {
+        waypointsLayer = L.geoJSON(data, {
+            pointToLayer: waypointMarker,
+            onEachFeature: (feature, layer) => layer.bindPopup(waypointPopup(feature))
+        });
+        addLayerControl();
+    });
+
+// Build the layer control once both layers are ready
+let controlAdded = false;
+function addLayerControl() {
+    if (!routesLayer || !waypointsLayer || controlAdded) return;
+    controlAdded = true;
+    L.control.layers(
+        { 'Roman Empire (DARE)': dare, 'Satellite': satellite },
+        { 'Routes': routesLayer, 'Waypoints': waypointsLayer },
+        { collapsed: false }
+    ).addTo(map);
+}
+</script>
+</body>
+</html>
