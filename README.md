@@ -4,3 +4,5 @@ This repository has links to various resources for the University of Exeter modu
 
 <a href="./web-viz/index.html">Ptolemy's map visulization</a>
 
+<a href="./antonine-itineraries/index.html">Antonine Itineraries map viewer</a>
+
