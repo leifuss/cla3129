@@ -6,6 +6,7 @@
 <title>Antonine Itineraries</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; display: flex; flex-direction: column; height: 100vh; }
@@ -32,6 +33,8 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
     background: rgba(22, 33, 62, 0.95) !important;
     border: 1px solid #0f3460 !important;
     color: #e8d5b7 !important;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
 }
 .leaflet-control-layers-base label,
 .leaflet-control-layers-overlays label { color: #e8d5b7; font-size: 0.85em; }
@@ -50,11 +53,40 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
 <div id="map"></div>
 
 <script>
+// --- Colour palette (15 visually distinct hues) ---
+const PALETTE = [
+    '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
+    '#42d4f4', '#f032e6', '#a9c93e', '#fa8072', '#469990',
+    '#b084cc', '#9A6324', '#e6c87a', '#c0392b', '#5dade2'
+];
+
+function colourFor(stretchId) {
+    return PALETTE[Math.round(stretchId) % PALETTE.length];
+}
+
+// --- Five STRETCHID bands for toggle groups ---
+const BANDS = [
+    { label: 'Itineraries 1\u201350',    min: 0,   max: 49  },
+    { label: 'Itineraries 51\u2013100',  min: 50,  max: 99  },
+    { label: 'Itineraries 101\u2013150', min: 100, max: 149 },
+    { label: 'Itineraries 151\u2013200', min: 150, max: 199 },
+    { label: 'Itineraries 201\u2013252', min: 200, max: 299 }
+];
+
+const groups = BANDS.map(() => L.layerGroup());
+
+function groupFor(stretchId) {
+    for (let i = 0; i < BANDS.length; i++) {
+        if (stretchId >= BANDS[i].min && stretchId <= BANDS[i].max) return groups[i];
+    }
+    return groups[groups.length - 1];
+}
+
 // --- Basemaps ---
 const dare = L.tileLayer(
-    'https://dare.ht.lu.se/tiles/imperium/{z}/{x}/{y}.png',
+    'https://dh.gu.se/tiles/imperium/{z}/{x}/{y}.png',
     {
-        attribution: '<a href="https://dare.ht.lu.se/">Digital Atlas of the Roman Empire</a>, Lund University',
+        attribution: '&copy; <a href="https://dh.gu.se/dare/">Johan \u00c5hlfeldt, CDH University of Gothenburg</a>',
         maxZoom: 11,
         minZoom: 3
     }
@@ -72,22 +104,48 @@ const satellite = L.tileLayer(
 const map = L.map('map', {
     center: [41, 20],
     zoom: 5,
-    layers: [dare]
+    layers: [dare, ...groups]  // DARE + all route groups on by default
 });
 
-// --- Route renderer ---
-function routeStyle() {
-    return {
-        color: '#c0392b',
-        weight: 2,
-        opacity: 0.85
-    };
-}
+// --- Load route lines ---
+let routesReady = false;
 
-function routePopup(feature) {
-    const p = feature.properties;
-    return `<b>Route segment</b><div class="sub">Stretch ID: ${p.STRETCHID ?? '—'}<br>Certainty: ${p.certainty ?? '—'}</div>`;
-}
+fetch('./data/antonine_itineraries.geojson')
+    .then(r => r.json())
+    .then(data => {
+        data.features.forEach(feature => {
+            const id = Math.round(feature.properties.STRETCHID || 0);
+            const color = colourFor(id);
+            const group = groupFor(id);
+
+            const layer = L.geoJSON(feature, {
+                style: { color, weight: 2.5, opacity: 0.85 }
+            });
+
+            layer.bindPopup(
+                `<b>Stretch ${id}</b><div class="sub">Certainty: ${feature.properties.certainty || '\u2014'}</div>`
+            );
+            layer.addTo(group);
+
+            // Direction arrow at midpoint of each sub-polyline
+            layer.eachLayer(polyline => {
+                L.polylineDecorator(polyline, {
+                    patterns: [{
+                        offset: '50%',
+                        repeat: 0,
+                        symbol: L.Symbol.arrowHead({
+                            pixelSize: 9,
+                            polygon: false,
+                            pathOptions: { color, weight: 2, opacity: 0.95, fillOpacity: 0 }
+                        })
+                    }]
+                }).addTo(group);
+            });
+        });
+
+        routesReady = true;
+        maybeAddLayerControl();
+    });
 
 // --- Waypoint renderer ---
 function waypointMarker(feature, latlng) {
@@ -104,23 +162,15 @@ function waypointMarker(feature, latlng) {
 function waypointPopup(feature) {
     const p = feature.properties;
     const name = p.label || '(unnamed)';
-    const extra = [p.locsource ? `Location: ${p.locsource}` : null, p.TPID ? `TP ID: ${p.TPID}` : null]
-        .filter(Boolean).join('<br>');
+    const extra = [
+        p.locsource ? `Location: ${p.locsource}` : null,
+        p.TPID ? `TP ID: ${p.TPID}` : null
+    ].filter(Boolean).join('<br>');
     return `<b>${name}</b>${extra ? `<div class="sub">${extra}</div>` : ''}`;
 }
 
-// --- Load layers ---
-let routesLayer, waypointsLayer;
-
-fetch('./data/antonine_itineraries.geojson')
-    .then(r => r.json())
-    .then(data => {
-        routesLayer = L.geoJSON(data, {
-            style: routeStyle,
-            onEachFeature: (feature, layer) => layer.bindPopup(routePopup(feature))
-        }).addTo(map);
-        addLayerControl();
-    });
+let waypointsLayer;
+let waypointsReady = false;
 
 fetch('./data/antonine_itineraries_points.geojson')
     .then(r => r.json())
@@ -129,19 +179,27 @@ fetch('./data/antonine_itineraries_points.geojson')
             pointToLayer: waypointMarker,
             onEachFeature: (feature, layer) => layer.bindPopup(waypointPopup(feature))
         });
-        addLayerControl();
+        waypointsReady = true;
+        maybeAddLayerControl();
     });
 
-// Build the layer control once both layers are ready
+// --- Layer control (built once both datasets are loaded) ---
 let controlAdded = false;
-function addLayerControl() {
-    if (!routesLayer || !waypointsLayer || controlAdded) return;
+
+function maybeAddLayerControl() {
+    if (!routesReady || !waypointsReady || controlAdded) return;
     controlAdded = true;
-    L.control.layers(
-        { 'Roman Empire (DARE)': dare, 'Satellite': satellite },
-        { 'Routes': routesLayer, 'Waypoints': waypointsLayer },
-        { collapsed: false }
-    ).addTo(map);
+
+    const baseMaps = {
+        'Roman Empire (DARE)': dare,
+        'Satellite': satellite
+    };
+
+    const overlays = {};
+    BANDS.forEach((band, i) => { overlays[band.label] = groups[i]; });
+    overlays['Waypoints'] = waypointsLayer;
+
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
 }
 </script>
 </body>
