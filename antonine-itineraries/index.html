@@ -66,24 +66,23 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
 <div id="map"></div>
 
 <script>
-// --- Colour palette (15 visually distinct hues) ---
+// --- Colour palette (one per regional section) ---
 const PALETTE = [
     '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
-    '#42d4f4', '#f032e6', '#a9c93e', '#fa8072', '#469990',
-    '#b084cc', '#9A6324', '#e6c87a', '#c0392b', '#5dade2'
+    '#42d4f4', '#f032e6', '#a9c93e', '#fa8072'
 ];
 
-function colourFor(stretchId) {
-    return PALETTE[Math.round(stretchId) % PALETTE.length];
-}
-
-// --- Five STRETCHID bands for toggle groups ---
+// --- Regional sections based on the Antonine Itinerary text structure ---
 const BANDS = [
-    { label: 'Itineraries 1\u201350',    min: 0,   max: 49  },
-    { label: 'Itineraries 51\u2013100',  min: 50,  max: 99  },
-    { label: 'Itineraries 101\u2013150', min: 100, max: 149 },
-    { label: 'Itineraries 151\u2013200', min: 150, max: 199 },
-    { label: 'Itineraries 201\u2013252', min: 200, max: 299 }
+    { label: 'Africa',                  min: 0,   max: 33  },
+    { label: 'Insulae (Sard. Cors. Sic.)', min: 34,  max: 50  },
+    { label: 'Italia (southern)',        min: 51,  max: 63  },
+    { label: 'Oriens (Egypt, Asia Minor)', min: 64, max: 111 },
+    { label: 'Illyricum & Alps',         min: 112, max: 136 },
+    { label: 'Italia (Viae)',            min: 137, max: 161 },
+    { label: 'Gallia & Germania',        min: 162, max: 196 },
+    { label: 'Hispania',                min: 197, max: 235 },
+    { label: 'Britannia',               min: 236, max: 299 }
 ];
 
 const groups = BANDS.map(() => L.layerGroup());
@@ -95,13 +94,21 @@ function groupFor(stretchId) {
     return groups[groups.length - 1];
 }
 
+function colourFor(stretchId) {
+    for (let i = 0; i < BANDS.length; i++) {
+        if (stretchId >= BANDS[i].min && stretchId <= BANDS[i].max) return PALETTE[i];
+    }
+    return PALETTE[PALETTE.length - 1];
+}
+
 // --- Basemaps ---
 const dare = L.tileLayer(
     'https://dh.gu.se/tiles/imperium/{z}/{x}/{y}.png',
     {
         attribution: '&copy; <a href="https://dh.gu.se/dare/">Johan \u00c5hlfeldt, CDH University of Gothenburg</a>',
         maxZoom: 11,
-        minZoom: 3
+        minZoom: 3,
+        opacity: 0.5
     }
 );
 
@@ -119,6 +126,10 @@ const map = L.map('map', {
     zoom: 5,
     layers: [dare, ...groups]  // DARE + all route groups on by default
 });
+
+// Custom pane so waypoints render beneath route lines
+map.createPane('waypointsPane');
+map.getPane('waypointsPane').style.zIndex = 350;  // below overlayPane (400)
 
 // --- Load route lines ---
 let routesReady = false;
@@ -170,7 +181,8 @@ function waypointMarker(feature, latlng) {
         color: '#8b0000',
         weight: 1,
         opacity: 1,
-        fillOpacity: 0.85
+        fillOpacity: 0.85,
+        pane: 'waypointsPane'
     });
 }
 
@@ -223,11 +235,8 @@ const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function () {
     const div = L.DomUtil.create('div', 'legend');
     div.innerHTML = '<h4>Legend</h4>';
-    BANDS.forEach(band => {
-        // Pick a representative colour from the middle of each band
-        const mid = Math.floor((band.min + band.max) / 2);
-        const c = colourFor(mid);
-        div.innerHTML += `<div class="legend-item"><span class="legend-swatch" style="background:${c}"></span>${band.label}</div>`;
+    BANDS.forEach((band, i) => {
+        div.innerHTML += `<div class="legend-item"><span class="legend-swatch" style="background:${PALETTE[i]}"></span>${band.label}</div>`;
     });
     div.innerHTML += '<div class="legend-item"><span class="legend-dot"></span>Waypoint</div>';
     return div;
