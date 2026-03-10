@@ -53,7 +53,7 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
 .legend h4 { margin: 0 0 6px; font-size: 0.9em; color: #e8d5b7; }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8em; }
 .legend-swatch { width: 24px; height: 3px; flex-shrink: 0; border-radius: 1px; }
-.legend-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #e8d5b7; border: 1px solid #8b0000; }
+.legend-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #ffd700; border: 1px solid #8b6914; }
 </style>
 </head>
 <body>
@@ -74,15 +74,15 @@ const PALETTE = [
 
 // --- Regional sections based on the Antonine Itinerary text structure ---
 const BANDS = [
-    { label: 'Africa',                  min: 0,   max: 33  },
-    { label: 'Insulae (Sard. Cors. Sic.)', min: 34,  max: 50  },
-    { label: 'Italia (southern)',        min: 51,  max: 63  },
-    { label: 'Oriens (Egypt, Asia Minor)', min: 64, max: 111 },
-    { label: 'Illyricum & Alps',         min: 112, max: 136 },
-    { label: 'Italia (Viae)',            min: 137, max: 161 },
-    { label: 'Gallia & Germania',        min: 162, max: 196 },
-    { label: 'Hispania',                min: 197, max: 235 },
-    { label: 'Britannia',               min: 236, max: 299 }
+    { label: '1. Africa',                     min: 0,   max: 33  },
+    { label: '2. Insulae (Sard. Cors. Sic.)', min: 34,  max: 50  },
+    { label: '3. Italia (southern)',           min: 51,  max: 63  },
+    { label: '4. Oriens (Egypt, Asia Minor)',  min: 64,  max: 111 },
+    { label: '5. Illyricum & Alps',            min: 112, max: 136 },
+    { label: '6. Italia (Viae)',               min: 137, max: 161 },
+    { label: '7. Gallia & Germania',           min: 162, max: 196 },
+    { label: '8. Hispania',                    min: 197, max: 235 },
+    { label: '9. Britannia',                   min: 236, max: 299 }
 ];
 
 const groups = BANDS.map(() => L.layerGroup());
@@ -127,9 +127,9 @@ const map = L.map('map', {
     layers: [dare, ...groups]  // DARE + all route groups on by default
 });
 
-// Custom pane so waypoints render beneath route lines
-map.createPane('waypointsPane');
-map.getPane('waypointsPane').style.zIndex = 350;  // below overlayPane (400)
+// Custom pane so Bordeaux markers render beneath route lines
+map.createPane('bordeauxPane');
+map.getPane('bordeauxPane').style.zIndex = 350;  // below overlayPane (400)
 
 // --- Load route lines ---
 let routesReady = false;
@@ -173,43 +173,43 @@ fetch('./data/antonine_itineraries.geojson')
     })
     .catch(err => console.error('Failed to load routes:', err));
 
-// --- Waypoint renderer ---
-function waypointMarker(feature, latlng) {
+// --- Bordeaux Itinerary locations ---
+let bordeauxLayer;
+let bordeauxReady = false;
+
+function bordeauxMarker(feature, latlng) {
     return L.circleMarker(latlng, {
         radius: 4,
-        fillColor: '#e8d5b7',
-        color: '#8b0000',
+        fillColor: '#ffd700',
+        color: '#8b6914',
         weight: 1,
         opacity: 1,
-        fillOpacity: 0.85,
-        pane: 'waypointsPane'
+        fillOpacity: 0.9,
+        pane: 'bordeauxPane'
     });
 }
 
-function waypointPopup(feature) {
+function bordeauxPopup(feature) {
     const p = feature.properties;
-    const name = p.label || '(unnamed)';
+    const name = p.name || '(unnamed)';
     const extra = [
-        p.locsource ? `Location: ${p.locsource}` : null,
-        p.TPID ? `TP ID: ${p.TPID}` : null
+        p.place_type ? `Type: ${p.place_type}` : null,
+        p.vocab_label ? `${p.vocab_label.split('|')[0]}` : null
     ].filter(Boolean).join('<br>');
     return `<b>${name}</b>${extra ? `<div class="sub">${extra}</div>` : ''}`;
 }
 
-let waypointsLayer;
-let waypointsReady = false;
-
-fetch('./data/antonine_itineraries_points.geojson')
+fetch('./data/bordeaux_itinerary.geojson')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(data => {
-        waypointsLayer = L.geoJSON(data, {
-            pointToLayer: waypointMarker,
-            onEachFeature: (feature, layer) => layer.bindPopup(waypointPopup(feature))
+        bordeauxLayer = L.geoJSON(data, {
+            pointToLayer: bordeauxMarker,
+            onEachFeature: (feature, layer) => layer.bindPopup(bordeauxPopup(feature))
         }).addTo(map);
-        waypointsReady = true;
+        bordeauxReady = true;
         maybeAddLayerControl();
     })
-    .catch(err => console.error('Failed to load waypoints:', err));
+    .catch(err => console.error('Failed to load Bordeaux locations:', err));
 
 // --- Layer control ---
 let layerControl = null;
@@ -218,15 +218,15 @@ function buildLayerControl() {
     const baseMaps = { 'Roman Empire (DARE)': dare, 'Satellite': satellite };
     const overlays = {};
     BANDS.forEach((band, i) => { overlays[band.label] = groups[i]; });
-    if (waypointsLayer) overlays['Waypoints'] = waypointsLayer;
+    if (bordeauxLayer) overlays['Bordeaux Itinerary'] = bordeauxLayer;
     layerControl = L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
 }
 
 function maybeAddLayerControl() {
-    if (!routesReady && !waypointsReady) return;
+    if (!routesReady && !bordeauxReady) return;
     if (!layerControl) buildLayerControl();
-    else if (waypointsReady && waypointsLayer) {
-        layerControl.addOverlay(waypointsLayer, 'Waypoints');
+    else if (bordeauxReady && bordeauxLayer) {
+        layerControl.addOverlay(bordeauxLayer, 'Bordeaux Itinerary');
     }
 }
 
@@ -238,7 +238,7 @@ legend.onAdd = function () {
     BANDS.forEach((band, i) => {
         div.innerHTML += `<div class="legend-item"><span class="legend-swatch" style="background:${PALETTE[i]}"></span>${band.label}</div>`;
     });
-    div.innerHTML += '<div class="legend-item"><span class="legend-dot"></span>Waypoint</div>';
+    div.innerHTML += '<div class="legend-item"><span class="legend-dot"></span>Bordeaux Itinerary</div>';
     return div;
 };
 legend.addTo(map);
