@@ -69,20 +69,21 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
 // --- Colour palette (one per regional section) ---
 const PALETTE = [
     '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
-    '#42d4f4', '#f032e6', '#a9c93e', '#fa8072'
+    '#42d4f4', '#f032e6', '#a9c93e', '#fa8072', '#469990'
 ];
 
-// --- Regional sections based on the Antonine Itinerary text structure ---
+// --- Sections based on the Wesseling pagination of the Antonine Itinerary ---
 const BANDS = [
-    { label: '1. Africa',                     min: 0,   max: 33  },
-    { label: '2. Insulae (Sard. Cors. Sic.)', min: 34,  max: 50  },
-    { label: '3. Italia (southern)',           min: 51,  max: 63  },
-    { label: '4. Oriens (Egypt, Asia Minor)',  min: 64,  max: 111 },
-    { label: '5. Illyricum & Alps',            min: 112, max: 136 },
-    { label: '6. Italia (Viae)',               min: 137, max: 161 },
-    { label: '7. Gallia & Germania',           min: 162, max: 196 },
-    { label: '8. Hispania',                    min: 197, max: 235 },
-    { label: '9. Britannia',                   min: 236, max: 299 }
+    { label: 'I. Africa (1,1\u201378,3)',                              min: 0,   max: 33  },
+    { label: 'II. Sardinia (78,4\u201385,3)',                           min: 34,  max: 40  },
+    { label: 'III. Corsica (85,4\u201386,1)',                           min: 41,  max: 41  },
+    { label: 'IV. Sicilia (86,2\u201398,1)',                            min: 42,  max: 50  },
+    { label: 'V. Italia\u2013Oriens\u2013Aegyptus (98,2\u2013173,4)',   min: 51,  max: 89  },
+    { label: 'VI. Thracia (175,1\u2013176,2)',                          min: 90,  max: 91  },
+    { label: 'VII. Cappadocia\u2013Syria (176,3\u2013217,4)',           min: 92,  max: 109 },
+    { label: 'VIII. Moesia\u2013Thracia\u2013Bithynia (217,5\u2013231,8)', min: 110, max: 111 },
+    { label: 'IX. Pannonia\u2013Noricum\u2013Italia\u2013Epirus (231,8\u2013339,5)', min: 112, max: 167 },
+    { label: 'X. Gallia\u2013Hispania\u2013Britannia (339,6\u2013486,17)',  min: 168, max: 299 }
 ];
 
 const groups = BANDS.map(() => L.layerGroup());
