@@ -127,19 +127,22 @@ fetch('./data/antonine_itineraries.geojson')
             );
             layer.addTo(group);
 
-            // Direction arrow at midpoint of each sub-polyline
+            // Direction arrow at midpoint — try/catch so a plugin error
+            // doesn't abort forEach and hide the remaining routes
             layer.eachLayer(polyline => {
-                L.polylineDecorator(polyline, {
-                    patterns: [{
-                        offset: '50%',
-                        repeat: 0,
-                        symbol: L.Symbol.ArrowHead({
-                            pixelSize: 9,
-                            polygon: false,
-                            pathOptions: { color, weight: 2, opacity: 0.95, fillOpacity: 0 }
-                        })
-                    }]
-                }).addTo(group);
+                try {
+                    L.polylineDecorator(polyline, {
+                        patterns: [{
+                            offset: '50%',
+                            repeat: 0,
+                            symbol: L.Symbol.ArrowHead({
+                                pixelSize: 9,
+                                polygon: false,
+                                pathOptions: { color, weight: 2, opacity: 0.95, fillOpacity: 0 }
+                            })
+                        }]
+                    }).addTo(group);
+                } catch (e) { /* skip arrow if plugin symbol unavailable */ }
             });
         });
 
