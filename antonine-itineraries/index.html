@@ -6,7 +6,7 @@
 <title>Antonine Itineraries</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; display: flex; flex-direction: column; height: 100vh; }
@@ -41,6 +41,19 @@ body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; displ
 .leaflet-control-layers-separator { border-top-color: #0f3460; }
 .leaflet-bar a { background: #16213e; color: #e8d5b7; border-color: #0f3460; }
 .leaflet-bar a:hover { background: #0f3460; }
+.legend {
+    background: rgba(22, 33, 62, 0.95);
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-family: 'Georgia', serif;
+    color: #e8d5b7;
+    line-height: 1.6;
+}
+.legend h4 { margin: 0 0 6px; font-size: 0.9em; color: #e8d5b7; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8em; }
+.legend-swatch { width: 24px; height: 3px; flex-shrink: 0; border-radius: 1px; }
+.legend-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #e8d5b7; border: 1px solid #8b0000; }
 </style>
 </head>
 <body>
@@ -187,23 +200,39 @@ fetch('./data/antonine_itineraries_points.geojson')
     .catch(err => console.error('Failed to load waypoints:', err));
 
 // --- Layer control ---
-// Built as soon as routes are ready; waypoints are added once they load.
 let layerControl = null;
 
 function buildLayerControl() {
     const baseMaps = { 'Roman Empire (DARE)': dare, 'Satellite': satellite };
     const overlays = {};
     BANDS.forEach((band, i) => { overlays[band.label] = groups[i]; });
+    if (waypointsLayer) overlays['Waypoints'] = waypointsLayer;
     layerControl = L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
 }
 
 function maybeAddLayerControl() {
-    if (!routesReady) return;
+    if (!routesReady && !waypointsReady) return;
     if (!layerControl) buildLayerControl();
-    if (waypointsReady && waypointsLayer) {
+    else if (waypointsReady && waypointsLayer) {
         layerControl.addOverlay(waypointsLayer, 'Waypoints');
     }
 }
+
+// --- Legend ---
+const legend = L.control({ position: 'bottomright' });
+legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = '<h4>Legend</h4>';
+    BANDS.forEach(band => {
+        // Pick a representative colour from the middle of each band
+        const mid = Math.floor((band.min + band.max) / 2);
+        const c = colourFor(mid);
+        div.innerHTML += `<div class="legend-item"><span class="legend-swatch" style="background:${c}"></span>${band.label}</div>`;
+    });
+    div.innerHTML += '<div class="legend-item"><span class="legend-dot"></span>Waypoint</div>';
+    return div;
+};
+legend.addTo(map);
 </script>
 </body>
 </html>
