@@ -127,7 +127,8 @@ fetch('./data/antonine_itineraries.geojson')
             );
             layer.addTo(group);
 
-            // Direction arrow at midpoint of each sub-polyline
+            // Direction arrow at midpoint — try/catch so a plugin error
+            // doesn't abort forEach and hide the remaining routes
             layer.eachLayer(polyline => {
                 L.polylineDecorator(polyline, {
                     patterns: [{
