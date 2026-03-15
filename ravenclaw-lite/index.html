@@ -3,420 +3,286 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RavenClaw-Lite — The Missing Tabula</title>
+<title>RavenClaw-Lite: The Missing Tabula</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Georgia', serif; background: #1a1a2e; color: #e0d8c8; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 #header {
-    padding: 8px 20px;
+    padding: 10px 20px;
     background: #16213e;
     border-bottom: 1px solid #0f3460;
     flex-shrink: 0;
 }
-#header h1 { font-size: 1.2em; color: #e8d5b7; letter-spacing: 0.5px; }
-#header p { font-size: 0.8em; color: #a89880; margin-top: 2px; }
+#header h1 { font-size: 1.3em; color: #e8d5b7; letter-spacing: 0.5px; }
+#header p { font-size: 0.85em; color: #a89880; margin-top: 2px; }
 
-#app {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-}
-
+#main { display: flex; flex: 1; overflow: hidden; }
 #map { flex: 1; }
 
 #sidebar {
-    width: 280px;
+    width: 290px;
     flex-shrink: 0;
-    background: #16213e;
+    background: rgba(22, 33, 62, 0.98);
     border-left: 1px solid #0f3460;
     overflow-y: auto;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    font-size: 0.82em;
-    line-height: 1.5;
+    gap: 14px;
 }
-
-.sidebar-section {
-    padding: 14px 16px;
-    border-bottom: 1px solid #0f3460;
-}
-.sidebar-section h3 {
-    font-size: 0.9em;
-    color: #e8d5b7;
-    margin-bottom: 8px;
-    letter-spacing: 0.3px;
-}
-.sidebar-section p, .sidebar-section li {
-    color: #c8bfad;
-    font-size: 0.85em;
-    margin-bottom: 6px;
-}
+.sidebar-section { border-bottom: 1px solid #0f3460; padding-bottom: 14px; }
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section h3 { font-size: 0.95em; color: #e8d5b7; margin-bottom: 8px; letter-spacing: 0.3px; }
+.sidebar-section p { font-size: 0.8em; color: #c8bfad; line-height: 1.55; margin-bottom: 4px; }
 .sidebar-section ol { padding-left: 16px; }
-.sidebar-section ol li { margin-bottom: 4px; }
+.sidebar-section ol li { font-size: 0.8em; color: #c8bfad; line-height: 1.55; margin-bottom: 6px; }
 
 .count-box {
-    background: rgba(15, 52, 96, 0.5);
+    background: #0f1e3a;
     border: 1px solid #0f3460;
     border-radius: 4px;
     padding: 10px 12px;
-    margin-top: 6px;
+    text-align: center;
 }
-.count-box .count-num {
-    font-size: 2em;
-    font-weight: bold;
-    color: #ff6b35;
-    display: block;
-    line-height: 1;
-}
-.count-box .count-label {
-    font-size: 0.8em;
-    color: #a89880;
-    margin-top: 4px;
-    display: block;
-}
+.count-box .count-num { font-size: 2.2em; color: #ff6b35; font-weight: bold; display: block; line-height: 1.1; }
+.count-box .count-label { font-size: 0.75em; color: #a89880; margin-top: 2px; }
 
-.slider-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 8px;
-}
-.slider-row label { font-size: 0.82em; color: #a89880; min-width: 80px; }
-.slider-row input[type="range"] { flex: 1; accent-color: #e8d5b7; cursor: pointer; }
-.slider-row .val { font-size: 0.82em; color: #e8d5b7; min-width: 28px; text-align: right; }
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 0.82em;
-    color: #c8bfad;
-}
-.legend-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.legend-tri-filled {
-    width: 0; height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 11px solid #d4a800;
-    flex-shrink: 0;
-}
-.legend-tri-hollow {
-    width: 0; height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 11px solid #ff6b35;
-    flex-shrink: 0;
-}
-.legend-line {
-    width: 20px; height: 2px;
-    border-top: 2px dashed #ff8c42;
-    flex-shrink: 0;
-}
-
-.attribution-text {
-    font-size: 0.72em;
-    color: #6b6355;
-    padding: 10px 16px;
-    margin-top: auto;
-}
-.attribution-text a { color: #7a7060; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.8em; color: #c8bfad; margin-bottom: 7px; }
+.legend-circle { width: 10px; height: 10px; border-radius: 50%; background: #8b1a1a; border: 1.5px solid #cc4444; flex-shrink: 0; }
+.legend-tri { flex-shrink: 0; }
+.legend-line { width: 22px; height: 3px; background: #1a4a8a; flex-shrink: 0; border-radius: 1px; }
 
 /* Leaflet popup theme */
-.leaflet-popup-content-wrapper {
-    background: #16213e;
-    color: #e8d5b7;
-    border: 1px solid #0f3460;
-    border-radius: 4px;
-}
+.leaflet-popup-content-wrapper { background: #16213e; color: #e8d5b7; border: 1px solid #0f3460; border-radius: 4px; }
 .leaflet-popup-tip { background: #16213e; }
-.leaflet-popup-content { margin: 10px 14px; font-family: 'Georgia', serif; font-size: 0.88em; }
+.leaflet-popup-content { margin: 10px 14px; font-family: 'Georgia', serif; font-size: 0.9em; }
 .leaflet-popup-content b { color: #e8d5b7; }
-.leaflet-popup-content .sub { color: #a89880; font-size: 0.85em; margin-top: 4px; }
+.leaflet-popup-content .sub { color: #a89880; font-size: 0.85em; margin-top: 3px; }
+.leaflet-popup-close-button { color: #a89880 !important; }
 
-/* Layer control */
-.leaflet-control-layers {
-    background: rgba(22, 33, 62, 0.97) !important;
-    border: 1px solid #0f3460 !important;
-    color: #e8d5b7 !important;
-}
+/* Leaflet controls */
+.leaflet-control-layers { background: rgba(22, 33, 62, 0.96) !important; border: 1px solid #0f3460 !important; max-height: calc(100vh - 80px); overflow-y: auto; }
 .leaflet-control-layers-base label,
-.leaflet-control-layers-overlays label { color: #e8d5b7; font-size: 0.82em; }
-.leaflet-control-layers-separator { border-top-color: #0f3460; }
-.leaflet-bar a { background: #16213e; color: #e8d5b7; border-color: #0f3460; }
-.leaflet-bar a:hover { background: #0f3460; }
+.leaflet-control-layers-overlays label { color: #e8d5b7 !important; font-size: 0.85em; }
+.leaflet-control-layers-separator { border-top-color: #0f3460 !important; }
+.leaflet-bar a { background: #16213e !important; color: #e8d5b7 !important; border-color: #0f3460 !important; }
+.leaflet-bar a:hover { background: #0f3460 !important; }
 
-/* Triangle marker styles */
-.tri-filled-icon {
-    width: 0 !important; height: 0 !important;
-    border-left: 6px solid transparent !important;
-    border-right: 6px solid transparent !important;
-    border-bottom: 11px solid #d4a800 !important;
-    background: transparent !important;
-    border-radius: 0 !important;
+#loading {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 2000; background: rgba(22, 33, 62, 0.92); color: #e8d5b7;
+    padding: 18px 28px; border-radius: 6px; border: 1px solid #0f3460;
+    font-size: 0.9em; pointer-events: none;
 }
-.tri-hollow-icon {
-    width: 0 !important; height: 0 !important;
-    border-left: 7px solid transparent !important;
-    border-right: 7px solid transparent !important;
-    border-bottom: 13px solid #ff6b35 !important;
-    background: transparent !important;
-    border-radius: 0 !important;
-    position: relative !important;
-}
-.tri-hollow-icon::after {
-    content: '';
-    position: absolute;
-    top: 4px;
-    left: -4px;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 8px solid #16213e;
-}
+.marker-tri { display: block; overflow: visible; }
 </style>
 </head>
 <body>
 
 <div id="header">
-    <h1>RavenClaw-Lite — The Missing Tabula Peutingeriana</h1>
-    <p>CLA3129 Week 10 &mdash; Estimating the lost first segment of the Peutinger Map</p>
+    <h1>RavenClaw-Lite: The Missing <i>Tabula</i></h1>
+    <p>CLA3129 Week 10 &mdash; Estimating the lost western segment of the Peutinger Map</p>
 </div>
 
-<div id="app">
-    <div id="map"></div>
-    <div id="sidebar">
+<div id="main">
+    <div id="map">
+        <div id="loading">Loading data&hellip;</div>
+    </div>
 
+    <div id="sidebar">
         <div class="sidebar-section">
-            <h3>Exercise</h3>
+            <h3>The Exercise</h3>
             <ol>
-                <li>Toggle on the <b>TP Image</b> layer to see the surviving map. How many parchment sheets can you identify from the scroll boundaries?</li>
-                <li>Count the <b>TP toponyms</b> (red dots) per sheet. Use this as your per-sheet average.</li>
-                <li>Note how many RC littoral places are <b>not on the surviving TP</b> (orange triangles). These are candidates for the missing western section.</li>
-                <li>Using the per-sheet average and the missing-section count, estimate how many sheets are missing &mdash; and where Rome would fall on the complete map.</li>
+                <li>Count the <b>TP toponyms</b> (dark red circles) on one typical parchment sheet, estimating where the sheet boundaries fall.</li>
+                <li>Note the <b>RC Littoral unmatched</b> places (orange triangles) &mdash; RC coastal places that do <i>not</i> appear on the surviving TP.</li>
+                <li>Use your sheet count and the missing-section count below to estimate how many sheets were lost.</li>
+                <li>Where does <b>Rome</b> fall on the complete map?</li>
             </ol>
         </div>
 
         <div class="sidebar-section">
-            <h3>RC Littoral — Missing Section</h3>
-            <p style="color:#a89880; font-size:0.8em;">Places in the Ravenna Cosmography Book&nbsp;5 littoral itinerary that are <em>not</em> on the surviving Tabula Peutingeriana:</p>
+            <h3>RC Littoral &mdash; Missing Section</h3>
             <div class="count-box">
-                <span class="count-num" id="missing-count">—</span>
-                <span class="count-label">places not on surviving TP<br>(with geographic coordinates)</span>
+                <span class="count-num" id="missing-count">&mdash;</span>
+                <div class="count-label">RC littoral places not on the surviving TP</div>
             </div>
-        </div>
-
-        <div class="sidebar-section">
-            <h3>TP Image Opacity</h3>
-            <div class="slider-row">
-                <label>Opacity</label>
-                <input type="range" id="tp-opacity" min="0" max="1" step="0.05" value="0.55">
-                <span class="val" id="tp-opacity-val">55%</span>
-            </div>
+            <p style="margin-top:8px;">These coastal places from the Ravenna Cosmography itinerary are absent from the surviving map &mdash; they belong to the lost western segment.</p>
         </div>
 
         <div class="sidebar-section">
             <h3>Legend</h3>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#8b1a1a; border:1px solid #c24040;"></div>
-                RC–TP matched toponyms (on surviving TP)
+                <span class="legend-circle"></span>
+                TP toponyms (Pleiades-matched)
             </div>
             <div class="legend-item">
-                <div class="legend-tri-filled"></div>
-                RC littoral — on surviving TP
+                <svg class="legend-tri" width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,13 1,13" fill="#d4a800" stroke="#5a4200" stroke-width="1.5"/></svg>
+                RC Littoral &mdash; on surviving TP
             </div>
             <div class="legend-item">
-                <div class="legend-tri-hollow"></div>
-                RC littoral — <em>not</em> on surviving TP
+                <svg class="legend-tri" width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,13 1,13" fill="#ff6b35" stroke="#7a2500" stroke-width="1.5"/></svg>
+                RC Littoral &mdash; <b>not</b> on surviving TP
             </div>
             <div class="legend-item">
-                <div class="legend-line"></div>
-                RC littoral itinerary sequence
+                <span class="legend-line"></span>
+                RC Littoral sequence
             </div>
         </div>
 
-        <div class="attribution-text">
-            Data: <a href="https://github.com/leifuss/ravenclaw" target="_blank">RavenC:LAW</a> (Isaksen 2025);
-            <a href="https://tp-online.ku.de" target="_blank">TP-Online</a> (KU Eichstätt-Ingolstadt);
-            <a href="https://pleiades.stoa.org" target="_blank">Pleiades</a>;
-            <a href="https://dh.gu.se/dare/" target="_blank">DARE</a> (Åhlfeldt).
-            TP tiles: Rathmann / ArcGIS Online.
+        <div class="sidebar-section">
+            <p style="color:#5a5468; font-size:0.73em; line-height: 1.5;">
+                Data: <a href="https://github.com/leifuss/ravenclaw" target="_blank" style="color:#7a8aa0;">RavenC:LAW</a> (Isaksen 2025);
+                <a href="https://www1.ku.de/ggf/ag/tabula_peutingeriana/index_en.php" target="_blank" style="color:#7a8aa0;">TP-Online / KU Eichst&auml;tt-Ingolstadt</a>;
+                <a href="https://pleiades.stoa.org" target="_blank" style="color:#7a8aa0;">Pleiades</a>;
+                <a href="https://dh.gu.se/dare/" target="_blank" style="color:#7a8aa0;">DARE</a>.
+            </p>
         </div>
     </div>
 </div>
 
 <script>
-// ---- Basemaps ----
-const dare = L.tileLayer(
-    'https://dh.gu.se/tiles/imperium/{z}/{x}/{y}.png',
-    {
-        attribution: '&copy; <a href="https://dh.gu.se/dare/">DARE, CDH Gothenburg</a>',
-        maxZoom: 11, minZoom: 3, opacity: 0.6
-    }
-);
-const osm = L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>' }
-);
-
-// ---- TP tile overlay (ArcGIS) ----
-const tpTiles = L.tileLayer(
-    'https://tiles.arcgis.com/tiles/ng2xfLT71MDOMwFn/arcgis/rest/services/TP_1to11_WTL1/MapServer/tile/{z}/{y}/{x}',
-    {
-        attribution: 'Tabula Peutingeriana: <a href="https://tp-online.ku.de">TP-Online</a> / Rathmann (ArcGIS)',
-        maxZoom: 12,
-        opacity: 0.55,
-        errorTileUrl: ''   // silently fail on missing tiles
-    }
-);
-
-// ---- Map ----
-const map = L.map('map', {
-    center: [41, 20],
-    zoom: 4,
-    layers: [dare, tpTiles]
+// ── Basemaps ─────────────────────────────────────────────────────────────────
+const dare = L.tileLayer('https://dh.gu.se/tiles/imperium/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://dh.gu.se/dare/">DARE, CDH University of Gothenburg</a>',
+    maxZoom: 11, minZoom: 3, opacity: 0.6
 });
 
-// ---- Layer groups ----
-const tpLayer   = L.layerGroup();   // RC-matched TP toponyms (red dots)
-const rcMatched = L.layerGroup();   // RC littoral matched (gold triangles)
-const rcUnmatched = L.layerGroup(); // RC littoral unmatched (orange hollow triangles)
-const rcLine    = L.layerGroup();   // littoral sequence line
-
-// Add all to map by default
-[tpLayer, rcMatched, rcUnmatched, rcLine].forEach(g => g.addTo(map));
-
-// ---- Opacity slider ----
-const opacitySlider = document.getElementById('tp-opacity');
-const opacityVal = document.getElementById('tp-opacity-val');
-opacitySlider.addEventListener('input', function() {
-    tpTiles.setOpacity(parseFloat(this.value));
-    opacityVal.textContent = Math.round(this.value * 100) + '%';
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
 });
 
-// ---- Triangle marker factories ----
-function triFilledIcon() {
-    return L.divIcon({ className: 'tri-filled-icon', iconSize: [12, 11], iconAnchor: [6, 11], popupAnchor: [0, -12] });
-}
-function triHollowIcon() {
-    return L.divIcon({ className: 'tri-hollow-icon', iconSize: [14, 13], iconAnchor: [7, 13], popupAnchor: [0, -14] });
-}
+// ── Map init ──────────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [38, 22], zoom: 5, layers: [dare] });
 
-// ---- Load RC littoral sequence line ----
+// Elevated pane for sequence line so it renders above point markers
+map.createPane('sequencePane');
+map.getPane('sequencePane').style.zIndex = 450;
+
+// ── SVG triangle icon factory ─────────────────────────────────────────────────
+function triIcon(fill, stroke) {
+    return L.divIcon({
+        html: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><polygon points="7,1 13,13 1,13" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/></svg>`,
+        className: 'marker-tri',
+        iconSize: [14, 14],
+        iconAnchor: [7, 13],
+        popupAnchor: [0, -14]
+    });
+}
+const matchedIcon   = triIcon('#d4a800', '#5a4200');
+const unmatchedIcon = triIcon('#ff6b35', '#7a2500');
+
+// ── Layer groups (all on by default) ─────────────────────────────────────────
+const tpLayer          = L.layerGroup().addTo(map);
+const rcMatchedLayer   = L.layerGroup().addTo(map);
+const rcUnmatchedLayer = L.layerGroup().addTo(map);
+const sequenceLayer    = L.layerGroup().addTo(map);
+
+// ── RC Littoral sequence line (dark blue, in elevated pane) ───────────────────
 fetch('./data/littoral_sequence.geojson')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(data => {
         L.geoJSON(data, {
-            style: {
-                color: '#ff8c42',
-                weight: 1.5,
-                opacity: 0.7,
-                dashArray: '5, 5'
-            }
-        }).addTo(rcLine);
+            style: { color: '#1a4a8a', weight: 2.5, opacity: 0.85 },
+            pane: 'sequencePane'
+        }).addTo(sequenceLayer);
     })
-    .catch(err => console.warn('Could not load littoral_sequence.geojson:', err));
+    .catch(err => console.warn('Sequence GeoJSON failed to load:', err));
 
-// ---- Load RC littoral CSV ----
-let missingCount = 0;
+// ── Loading state ─────────────────────────────────────────────────────────────
+let loaded = 0;
+function onLoaded() {
+    if (++loaded >= 2) document.getElementById('loading').style.display = 'none';
+}
 
-Papa.parse('./data/rc_littoral.csv', {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function(results) {
-        const rows = results.data;
-
-        rows.forEach(row => {
-            const lat = parseFloat(row.representative_latitude);
-            const lon = parseFloat(row.representative_longitude);
-            if (!lat || !lon || lat === 0 || lon === 0) return;
-
-            const isMatched = row.Talbert_id && row.Talbert_id.trim() !== '';
-            const name = (row.pleiades_toponym || row.RC_peri || '').trim() || '(unnamed)';
-            const stage = row.stage ? `Stage ${row.stage}` : '';
-            const rcRef = row.RC_peri_ref ? `RC ${row.RC_peri_ref}` : '';
-
-            if (isMatched) {
-                const marker = L.marker([lat, lon], { icon: triFilledIcon() });
-                marker.bindPopup(
-                    `<b>${name}</b><div class="sub">${[stage, rcRef, 'On surviving TP'].filter(Boolean).join(' · ')}</div>`
-                );
-                marker.addTo(rcMatched);
-            } else {
-                missingCount++;
-                const marker = L.marker([lat, lon], { icon: triHollowIcon() });
-                marker.bindPopup(
-                    `<b>${name}</b><div class="sub">${[stage, rcRef, '<em>Not on surviving TP</em>'].filter(Boolean).join(' · ')}</div>`
-                );
-                marker.addTo(rcUnmatched);
-            }
-        });
-
-        document.getElementById('missing-count').textContent = missingCount;
-    },
-    error: function(err) {
-        console.error('Could not load rc_littoral.csv:', err);
-    }
-});
-
-// ---- Load TP toponyms from ravenclaw.csv ----
-Papa.parse('./data/ravenclaw.csv', {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function(results) {
-        const rows = results.data;
-
-        rows.forEach(row => {
+// ── ravenclaw.csv → TP Toponyms ───────────────────────────────────────────────
+fetch('./data/ravenclaw.csv')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then(text => {
+        const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+        let count = 0;
+        data.forEach(row => {
             if (row.on_tp !== 'TRUE') return;
             const lat = parseFloat(row.rep_lat);
             const lon = parseFloat(row.rep_long);
-            if (!lat || !lon || lat === 0 || lon === 0) return;
+            if (!lat || !lon) return;
 
-            const name = (row.ku_name_lookup || row.rc_toponym || '').trim() || '(unnamed)';
-            const grid = row.ku_gridsquare ? `Grid ${row.ku_gridsquare.trim()}` : '';
+            const name = row.ku_name_lookup || row.talbert_name_lookup || row.rc_toponym || '(unnamed)';
+            const grid = row.talbert_gridsquare || row.ku_gridsquare || '';
+            const gridHtml = grid ? `<div class="sub">Grid: ${grid}</div>` : '';
+            const pleiHtml = row.pleiades_id
+                ? `<div class="sub">Pleiades: <a href="https://pleiades.stoa.org/places/${row.pleiades_id}" target="_blank" style="color:#7a8aa0">${row.pleiades_id}</a></div>`
+                : '';
 
-            const marker = L.circleMarker([lat, lon], {
-                radius: 3,
+            L.circleMarker([lat, lon], {
+                radius: 4,
                 fillColor: '#8b1a1a',
-                color: '#c24040',
+                color: '#cc4444',
                 weight: 1,
                 opacity: 1,
                 fillOpacity: 0.85
-            });
-            marker.bindPopup(
-                `<b>${name}</b><div class="sub">${grid ? grid + ' · ' : ''}RC–TP matched</div>`
-            );
-            marker.addTo(tpLayer);
+            })
+            .bindPopup(`<b>${name}</b>${gridHtml}${pleiHtml}`)
+            .addTo(tpLayer);
+            count++;
         });
+        console.log(`TP toponyms: ${count}`);
+        onLoaded();
+    })
+    .catch(err => { console.error('ravenclaw.csv error:', err); onLoaded(); });
+
+// ── rc_littoral.csv → RC Littoral Points ──────────────────────────────────────
+fetch('./data/rc_littoral.csv')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then(text => {
+        const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+        let nMatched = 0, nUnmatched = 0;
+
+        data.forEach(row => {
+            const lat = parseFloat(row.representative_latitude);
+            const lon = parseFloat(row.representative_longitude);
+            if (!lat || !lon) return;
+
+            const name     = row.pleiades_toponym || row.RC_peri || '(unnamed)';
+            const stageHtml = row.stage ? `<div class="sub">Stage ${row.stage}</div>` : '';
+            const rcRefHtml = row.RC_peri_ref ? `<div class="sub">RC: ${row.RC_peri_ref} ${row.RC_peri || ''}</div>` : '';
+            const isMatched = row.Talbert_id && row.Talbert_id.trim() !== '';
+
+            if (isMatched) {
+                const gridHtml = row.TP_gridsquare ? `<div class="sub">TP grid: ${row.TP_gridsquare}</div>` : '';
+                L.marker([lat, lon], { icon: matchedIcon })
+                    .bindPopup(`<b>${name}</b>${stageHtml}${gridHtml}${rcRefHtml}<div class="sub" style="color:#d4a800">On surviving TP</div>`)
+                    .addTo(rcMatchedLayer);
+                nMatched++;
+            } else {
+                L.marker([lat, lon], { icon: unmatchedIcon })
+                    .bindPopup(`<b>${name}</b>${stageHtml}${rcRefHtml}<div class="sub" style="color:#ff6b35">Not on surviving TP</div>`)
+                    .addTo(rcUnmatchedLayer);
+                nUnmatched++;
+            }
+        });
+
+        document.getElementById('missing-count').textContent = nUnmatched;
+        console.log(`RC matched: ${nMatched}, unmatched: ${nUnmatched}`);
+        onLoaded();
+    })
+    .catch(err => { console.error('rc_littoral.csv error:', err); onLoaded(); });
+
+// ── Layer control ─────────────────────────────────────────────────────────────
+L.control.layers(
+    { 'Roman Empire (DARE)': dare, 'OpenStreetMap': osm },
+    {
+        'TP Toponyms': tpLayer,
+        'RC Littoral — on TP': rcMatchedLayer,
+        'RC Littoral — missing section': rcUnmatchedLayer,
+        'RC Littoral sequence': sequenceLayer
     },
-    error: function(err) {
-        console.error('Could not load ravenclaw.csv:', err);
-    }
-});
-
-// ---- Layer control ----
-const baseMaps = {
-    'Roman Empire (DARE)': dare,
-    'OpenStreetMap': osm
-};
-const overlays = {
-    'TP Image (Rathmann)': tpTiles,
-    'TP Toponyms (RC-matched)': tpLayer,
-    'RC Littoral — on surviving TP': rcMatched,
-    'RC Littoral — not on surviving TP': rcUnmatched,
-    'RC Littoral Sequence': rcLine
-};
-
-L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    { collapsed: false }
+).addTo(map);
 </script>
 </body>
 </html>
