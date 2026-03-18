@@ -6,5 +6,5 @@ This repository has links to various resources for the University of Exeter modu
 
 <a href="./antonine-itineraries/index.html">Antonine Itineraries map viewer</a>
 
-<a href="/ravenclaw-lite/index.html">RavenC:LAW-Lite map viewer</a>
+<a href="./ravenclaw-lite/index.html">RavenC:LAW-Lite map viewer</a>
 
